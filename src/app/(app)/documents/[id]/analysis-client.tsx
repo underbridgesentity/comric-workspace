@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -121,6 +121,35 @@ export function AnalysisSection({
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [latest, setLatest] = useState<SerializedAnalysis | null>(analyses[0] ?? null);
+  const pollCount = useRef(0);
+  const [polling, setPolling] = useState(false);
+
+  const analysableHint = ["pdf", "docx", "xlsx", "csv", "txt", "md"].includes(fileType);
+
+  // Adopt a fresh analysis when a background run lands via router.refresh().
+  useEffect(() => {
+    if (!latest && analyses[0]) setLatest(analyses[0]);
+  }, [analyses, latest]);
+
+  // Light polling affordance: a background analysis may still be running
+  // after upload, so refresh every 10s (max 12 times) until one appears.
+  useEffect(() => {
+    if (analyses.length > 0 || !analysableHint) {
+      setPolling(false);
+      return;
+    }
+    setPolling(true);
+    const timer = setInterval(() => {
+      pollCount.current += 1;
+      if (pollCount.current > 12) {
+        setPolling(false);
+        clearInterval(timer);
+        return;
+      }
+      router.refresh();
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [analyses.length, analysableHint, router]);
 
   const history = useMemo(
     () => analyses.filter((a) => a.id !== latest?.id),
@@ -147,8 +176,6 @@ export function AnalysisSection({
       setRunning(false);
     }
   }
-
-  const analysableHint = ["pdf", "docx", "xlsx", "csv", "txt", "md"].includes(fileType);
 
   return (
     <div className="space-y-6">
@@ -191,6 +218,13 @@ export function AnalysisSection({
         <p className="rounded-brand border border-sev-critical/30 bg-sev-critical/10 px-3 py-2 text-sm text-sev-critical">
           {runError}
         </p>
+      )}
+
+      {!latest && !running && polling && (
+        <div className="flex items-center gap-2 rounded-brand border border-cyber/30 bg-cyber/[0.05] px-4 py-2.5 text-sm text-ink">
+          <Loader2 className="h-4 w-4 animate-spin text-cyber" />
+          Analysing in background... this page checks for the result automatically.
+        </div>
       )}
 
       {!latest && !running && (

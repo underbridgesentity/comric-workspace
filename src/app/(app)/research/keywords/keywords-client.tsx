@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Card, EmptyState, GhostButton, PrimaryButton, StatusBadge } from "@/components/ui";
+import { SuggestionsSection, type SerializedSuggestion } from "./suggestions-section";
 
 type SetRow = {
   id: string;
@@ -59,6 +60,9 @@ export function KeywordsClient({
   canCreate,
   canUpdate,
   canDelete,
+  canSuggest,
+  canCommitSuggestions,
+  latestSuggestion,
   sets,
   results,
 }: {
@@ -66,6 +70,9 @@ export function KeywordsClient({
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  canSuggest: boolean;
+  canCommitSuggestions: boolean;
+  latestSuggestion: SerializedSuggestion | null;
   sets: SetRow[];
   results: ResultRow[];
 }) {
@@ -343,6 +350,13 @@ export function KeywordsClient({
           ))}
         </div>
       )}
+
+      {/* AI risk suggestions from scraped news */}
+      <SuggestionsSection
+        latest={latestSuggestion}
+        canSuggest={canSuggest}
+        canCommit={canCommitSuggestions}
+      />
 
       {/* Recent results */}
       <div>

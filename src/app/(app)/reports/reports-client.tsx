@@ -40,6 +40,7 @@ type Template = {
   description: string | null;
   createdBy: string;
   parameters: BuilderPayload;
+  schedule: "weekly" | null;
 };
 
 const TYPES: { id: ReportType; label: string; description: string; icon: React.ReactNode }[] = [
@@ -140,6 +141,7 @@ export function ReportsClient({
   // Async state
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streamText, setStreamText] = useState<string | null>(null);
   const [generated, setGenerated] = useState<{ id: string; title: string; content: string } | null>(
     null,
   );
@@ -149,6 +151,7 @@ export function ReportsClient({
   const [templateFormOpen, setTemplateFormOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
+  const [templateWeekly, setTemplateWeekly] = useState(false);
   const [templateError, setTemplateError] = useState<string | null>(null);
   const [templateSaved, setTemplateSaved] = useState(false);
   const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
@@ -186,29 +189,53 @@ export function ReportsClient({
     setGenerating(true);
     setError(null);
     setGenerated(null);
+    setStreamText("");
     try {
       const res = await fetch("/api/ai/report", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(currentPayload()),
       });
-      const data = (await res.json()) as {
-        id?: string;
-        title?: string;
-        content?: string;
-        error?: string;
+      if (!res.ok || !res.body) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? "Report generation failed");
+      }
+
+      // Plain-text stream of markdown deltas; a final NUL-prefixed trailer
+      // line carries REPORT_META:{id,title} or REPORT_ERROR:<message>.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        const marker = full.indexOf("\u0000");
+        setStreamText(marker === -1 ? full : full.slice(0, marker));
+      }
+      full += decoder.decode();
+
+      const marker = full.indexOf("\u0000");
+      if (marker === -1) throw new Error("Report generation ended unexpectedly");
+      const content = full.slice(0, marker).replace(/\n$/, "");
+      const trailer = full.slice(marker + 1);
+      if (trailer.startsWith("REPORT_ERROR:")) {
+        throw new Error(trailer.slice("REPORT_ERROR:".length).trim());
+      }
+      if (!trailer.startsWith("REPORT_META:")) {
+        throw new Error("Report generation ended unexpectedly");
+      }
+      const meta = JSON.parse(trailer.slice("REPORT_META:".length)) as {
+        id: string;
+        title: string;
       };
-      if (!res.ok) throw new Error(data.error ?? "Report generation failed");
-      setGenerated({
-        id: data.id ?? "",
-        title: data.title ?? "Report",
-        content: data.content ?? "",
-      });
+      setGenerated({ id: meta.id, title: meta.title, content });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Report generation failed");
     } finally {
       setGenerating(false);
+      setStreamText(null);
     }
   }
 
@@ -227,6 +254,7 @@ export function ReportsClient({
           name: templateName.trim(),
           description: templateDescription.trim() || undefined,
           parameters: currentPayload(),
+          schedule: templateWeekly ? "weekly" : null,
         }),
       });
       const data = (await res.json()) as { error?: string };
@@ -234,6 +262,7 @@ export function ReportsClient({
       setTemplateFormOpen(false);
       setTemplateName("");
       setTemplateDescription("");
+      setTemplateWeekly(false);
       setTemplateSaved(true);
       setTimeout(() => setTemplateSaved(false), 2500);
       router.refresh();
@@ -287,6 +316,11 @@ export function ReportsClient({
                       }`}
                     >
                       <LayoutTemplate className="h-3.5 w-3.5" /> {t.name}
+                      {t.schedule === "weekly" && (
+                        <span className="rounded-sm border border-digital/40 bg-digital/10 px-1 py-0.5 text-[9px] font-bold tracking-wider text-digital">
+                          WEEKLY
+                        </span>
+                      )}
                     </button>
                     {canDeleteTemplates && (
                       <button
@@ -442,7 +476,7 @@ export function ReportsClient({
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {generating ? "Generating report…" : "Generate report"}
+              {generating ? "Writing report..." : "Generate report"}
             </PrimaryButton>
             <GhostButton onClick={() => setTemplateFormOpen((v) => !v)} disabled={savingTemplate}>
               <BookmarkPlus className="h-4 w-4" /> Save as template
@@ -468,6 +502,15 @@ export function ReportsClient({
                   className="w-full rounded-brand border border-hairline bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 focus:border-cyber/50 focus:outline-none"
                 />
               </div>
+              <label className="mt-3 flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={templateWeekly}
+                  onChange={(e) => setTemplateWeekly(e.target.checked)}
+                  className="h-4 w-4 accent-[var(--color-cyber,#8eff00)]"
+                />
+                Run automatically every week
+              </label>
               <div className="mt-3 flex items-center gap-2">
                 <PrimaryButton onClick={saveTemplate} disabled={savingTemplate}>
                   {savingTemplate ? (
@@ -507,6 +550,22 @@ export function ReportsClient({
         <div className="rounded-brand border border-sev-critical/40 bg-sev-critical/10 px-4 py-2.5 text-sm text-sev-critical">
           {error}
         </div>
+      )}
+
+      {generating && streamText !== null && (
+        <Card accent="blue" className="animate-rise p-6">
+          <div className="mb-4 flex items-center gap-2 border-b border-hairline pb-4">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-digital" />
+            <p className="animate-pulse font-display text-xs font-bold tracking-wider text-digital uppercase">
+              Writing report...
+            </p>
+          </div>
+          {streamText ? (
+            <Markdown content={streamText} />
+          ) : (
+            <p className="text-sm text-muted">Assembling live platform data...</p>
+          )}
+        </Card>
       )}
 
       {generated && (

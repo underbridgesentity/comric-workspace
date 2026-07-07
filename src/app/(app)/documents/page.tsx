@@ -93,7 +93,7 @@ export default async function DocumentsPage({
   let loadError = false;
 
   try {
-    let analysisRows: { documentId: string }[] = [];
+    let analysisRows: { documentId: string | null }[] = [];
     [rows, openRisks, analysisRows] = await Promise.all([
       db
         .select({
@@ -124,7 +124,7 @@ export default async function DocumentsPage({
         .groupBy(documentAnalyses.documentId)
         .having(sql`count(*) > 0`),
     ]);
-    analysedIds = new Set(analysisRows.map((a) => a.documentId));
+    analysedIds = new Set(analysisRows.map((a) => a.documentId).filter((d): d is string => d !== null));
   } catch (err) {
     console.error("documents query failed", err);
     loadError = true;

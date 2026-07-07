@@ -272,9 +272,9 @@ export const reportTemplates = pgTable("report_templates", {
 
 export const documentAnalyses = pgTable("document_analyses", {
   id: uuid("id").primaryKey().defaultRandom(),
-  documentId: uuid("document_id")
-    .notNull()
-    .references(() => documents.id, { onDelete: "cascade" }),
+  // Null for analyses not tied to a document (e.g. scrape-derived suggestions).
+  documentId: uuid("document_id").references(() => documents.id, { onDelete: "cascade" }),
+  source: text("source").notNull().default("document"), // document | scrape
   status: text("status").notNull().default("completed"), // completed | committed | failed
   summary: text("summary").notNull(),
   proposals: jsonb("proposals").notNull(),

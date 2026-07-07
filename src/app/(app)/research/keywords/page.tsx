@@ -1,10 +1,11 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { keywordSets, scrapeResults } from "@/lib/schema";
+import { documentAnalyses, keywordSets, scrapeResults } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui";
 import { KeywordsClient } from "./keywords-client";
+import type { SerializedSuggestion } from "./suggestions-section";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function KeywordsPage() {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
 
-  const [sets, counts, recent] = await Promise.all([
+  const [sets, counts, recent, suggestionRows] = await Promise.all([
     db.select().from(keywordSets).orderBy(desc(keywordSets.createdAt)),
     db
       .select({
@@ -38,9 +39,24 @@ export default async function KeywordsPage() {
       .leftJoin(keywordSets, eq(scrapeResults.keywordSetId, keywordSets.id))
       .orderBy(desc(scrapeResults.scrapedAt))
       .limit(50),
+    db
+      .select()
+      .from(documentAnalyses)
+      .where(eq(documentAnalyses.source, "scrape"))
+      .orderBy(desc(documentAnalyses.createdAt))
+      .limit(5),
   ]);
 
   const countMap = Object.fromEntries(counts.map((c) => [c.keywordSetId, c.count]));
+
+  const suggestions: SerializedSuggestion[] = suggestionRows.map((a) => ({
+    id: a.id,
+    status: a.status,
+    summary: a.summary,
+    proposals: a.proposals as SerializedSuggestion["proposals"],
+    committedAt: a.committedAt ? a.committedAt.toISOString() : null,
+    createdAt: a.createdAt.toISOString(),
+  }));
 
   return (
     <div className="animate-rise">
@@ -53,6 +69,9 @@ export default async function KeywordsPage() {
         canCreate={can(role, "create", "keyword_set")}
         canUpdate={can(role, "update", "keyword_set")}
         canDelete={can(role, "delete", "keyword_set")}
+        canSuggest={can(role, "create", "risk")}
+        canCommitSuggestions={can(role, "create", "risk")}
+        latestSuggestion={suggestions[0] ?? null}
         sets={sets.map((s) => ({
           id: s.id,
           name: s.name,

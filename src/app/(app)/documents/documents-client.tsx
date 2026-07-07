@@ -21,7 +21,11 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
   const [linkedRiskId, setLinkedRiskId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploaded, setUploaded] = useState<{ id: string; name: string } | null>(null);
+  const [uploaded, setUploaded] = useState<{
+    id: string;
+    name: string;
+    autoAnalysing: boolean;
+  } | null>(null);
 
   function reset() {
     setFileName(null);
@@ -52,7 +56,7 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
 
       const res = await fetch("/api/documents", { method: "POST", body: form });
       const data = (await res.json().catch(() => null)) as
-        | { error?: string; document?: { id: string; name: string } }
+        | { error?: string; document?: { id: string; name: string }; autoAnalysing?: boolean }
         | null;
       if (!res.ok) {
         setError(data?.error ?? "Upload failed. Try again.");
@@ -60,7 +64,11 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
       }
       reset();
       if (data?.document) {
-        setUploaded({ id: data.document.id, name: data.document.name });
+        setUploaded({
+          id: data.document.id,
+          name: data.document.name,
+          autoAnalysing: data.autoAnalysing === true,
+        });
       } else {
         setOpen(false);
       }
@@ -90,9 +98,12 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
               <h2 className="font-display text-lg font-black tracking-tight text-ink">
                 Upload complete
               </h2>
-              <p className="mt-1 truncate text-sm text-muted">
-                “{uploaded.name}” is now in the Document Hub. Want the AI to interpret it and
-                propose risks, intelligence and research?
+              <p className="mt-1 text-sm text-muted">
+                <span className="font-medium text-ink">{uploaded.name}</span> is now in the
+                Document Hub.{" "}
+                {uploaded.autoAnalysing
+                  ? "AI analysis is running in the background. You will get a notification when it is ready."
+                  : "Want the AI to interpret it and propose risks, intelligence and research?"}
               </p>
             </div>
           </div>
@@ -110,7 +121,8 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
               type="button"
               onClick={() => router.push(`/documents/${uploaded.id}`)}
             >
-              <Sparkles className="h-4 w-4" /> Analyse now
+              <Sparkles className="h-4 w-4" />
+              {uploaded.autoAnalysing ? "View document" : "Analyse now"}
             </PrimaryButton>
           </div>
         </div>

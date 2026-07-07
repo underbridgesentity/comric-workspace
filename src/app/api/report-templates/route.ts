@@ -11,6 +11,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).optional(),
   parameters: builderSchema,
+  schedule: z.enum(["weekly"]).nullable().optional(),
 });
 
 /** List saved report-builder templates. */
@@ -48,7 +49,12 @@ export async function POST(request: Request) {
     .values({
       name: parsed.data.name,
       description: parsed.data.description ?? null,
-      parameters: parsed.data.parameters,
+      // Stored as { builder, schedule } so the weekly cron can pick up
+      // scheduled templates without a schema migration.
+      parameters: {
+        builder: parsed.data.parameters,
+        schedule: parsed.data.schedule ?? null,
+      },
       createdBy: g.user.id,
     })
     .returning();
@@ -58,7 +64,7 @@ export async function POST(request: Request) {
     action: "report_template.create",
     entityType: "report_template",
     entityId: template.id,
-    metadata: { name: template.name },
+    metadata: { name: template.name, schedule: parsed.data.schedule ?? null },
   });
 
   return NextResponse.json({ template }, { status: 201 });

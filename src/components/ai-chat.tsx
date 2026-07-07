@@ -7,6 +7,34 @@ import { Markdown } from "@/components/markdown";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
+const STORAGE_KEY = "comric-chat-history";
+const MAX_STORED = 24;
+
+function loadHistory(): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (m): m is ChatMessage =>
+        typeof m === "object" && m !== null &&
+        ((m as ChatMessage).role === "user" || (m as ChatMessage).role === "assistant") &&
+        typeof (m as ChatMessage).content === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(messages: ChatMessage[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-MAX_STORED)));
+  } catch {
+    // storage full/unavailable: chat still works, just not persisted
+  }
+}
+
 export function AiChatPanel({
   open,
   initialQuestion,
@@ -16,7 +44,9 @@ export function AiChatPanel({
   initialQuestion?: string;
   onClose: () => void;
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    typeof window === "undefined" ? [] : loadHistory(),
+  );
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +91,7 @@ export function AiChatPanel({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    saveHistory(messages);
   }, [messages, busy]);
 
   if (!open || typeof document === "undefined") return null;
@@ -83,13 +114,29 @@ export function AiChatPanel({
               <p className="text-[11px] text-muted">Answers from live platform data only</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-brand p-1.5 text-muted transition-colors hover:bg-ink/5 hover:text-ink dark:hover:bg-white/5"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setError(null);
+                  try {
+                    localStorage.removeItem(STORAGE_KEY);
+                  } catch {}
+                }}
+                className="rounded-brand px-2 py-1 font-display text-[10px] font-bold tracking-wide text-muted uppercase transition-colors hover:bg-ink/5 hover:text-ink dark:hover:bg-white/5"
+              >
+                Clear
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-brand p-1.5 text-muted transition-colors hover:bg-ink/5 hover:text-ink dark:hover:bg-white/5"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">

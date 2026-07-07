@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { aiReports, reportTemplates, users } from "@/lib/schema";
 import { can } from "@/lib/permissions";
-import { readReportParameters } from "@/lib/report-config";
+import { readTemplateParameters } from "@/lib/report-config";
 import { PageHeader } from "@/components/ui";
 import { ReportsClient } from "./reports-client";
 
@@ -61,14 +61,15 @@ export default async function ReportsPage() {
         canDeleteTemplates={can(role, "delete", "ai_report")}
         templates={templates
           .map((t) => {
-            const params = readReportParameters({ builder: t.parameters }).builder;
-            return params
+            const params = readTemplateParameters(t.parameters);
+            return params.builder
               ? {
                   id: t.id,
                   name: t.name,
                   description: t.description,
                   createdBy: t.createdBy ?? "Unknown",
-                  parameters: params,
+                  parameters: params.builder,
+                  schedule: params.schedule ?? null,
                 }
               : null;
           })

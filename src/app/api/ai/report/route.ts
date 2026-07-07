@@ -1,34 +1,27 @@
 import { NextResponse } from "next/server";
 import { guard, jsonError } from "@/lib/api";
-import { db } from "@/lib/db";
-import { aiReports } from "@/lib/schema";
-import { anthropic, AI_MODEL, COMRIC_CONTEXT, textFromMessage } from "@/lib/anthropic";
+import { anthropic, AI_MODEL, sanitizeAiText } from "@/lib/anthropic";
 import { logActivity } from "@/lib/activity";
 import { createAlert } from "@/lib/alert-engine";
-import { builderSchema, RANGE_LABELS, type ReportParameters } from "@/lib/report-config";
-import {
-  assembleMetricTables,
-  assembleSourceBlocks,
-  metricTableToMarkdown,
-} from "@/lib/report-data";
+import { builderSchema } from "@/lib/report-config";
+import { buildReportPrompt, defaultReportTitle, persistReport } from "@/lib/report-generate";
 
 export const maxDuration = 120;
 
-const TYPE_TITLES: Record<string, string> = {
-  risk_summary: "Risk Summary",
-  sector_report: "Sector Report",
-  research_digest: "Research Digest",
-};
-
 /**
- * Generate a configurable AI report from the report-builder payload:
- * assemble only the selected metrics and data sources, brief Claude with the
- * computed tables and the analyst's instructions, and persist the result
- * together with the full builder state + data snapshot for exports.
+ * Streaming report generation. The response body is plain text: the model's
+ * markdown deltas as they arrive, followed by a single NUL-prefixed trailer
+ * line the client splits on:
+ *   "\n<NUL>REPORT_META:{...json...}"  on success (persisted report id/title)
+ *   "\n<NUL>REPORT_ERROR:<message>"    on mid-stream failure
+ * Persistence (ai_report row with builder payload + metric snapshot, activity
+ * log, ai_complete alert) happens inside the stream pump before the trailer
+ * is emitted, so the meta line always refers to a committed row.
  */
 export async function POST(request: Request) {
   const g = await guard("create", "ai_report");
   if (g.error) return g.error;
+  const userId = g.user.id;
 
   const parsed = builderSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Invalid report request.");
@@ -41,90 +34,94 @@ export async function POST(request: Request) {
     );
   }
 
-  // Assemble only what the builder selected. Defaults keep the prompt
-  // grounded even when the user unticks everything.
-  const effective = {
-    ...payload,
-    metrics: payload.metrics.length > 0 ? payload.metrics : (["severity_distribution", "category_breakdown", "response_status"] as typeof payload.metrics),
-    sources: payload.sources.length > 0 ? payload.sources : (["risk_register"] as typeof payload.sources),
-  };
-
-  const [metricTables, sourceBlocks] = await Promise.all([
-    assembleMetricTables(effective),
-    assembleSourceBlocks(effective),
-  ]);
-
-  const typeTitle = TYPE_TITLES[payload.reportType] ?? "Report";
-  const scopeBits = [
-    RANGE_LABELS[payload.range],
-    payload.category ? `category: ${payload.category}` : null,
-    payload.severityFloor ? `severity ${payload.severityFloor} and above` : null,
-  ].filter(Boolean);
-
-  const prompt = `Generate a formal COMRiC ${typeTitle}.
-
-SCOPE: ${scopeBits.join(" · ")}
-${payload.instructions ? `\nANALYST'S BRIEF - the report must explicitly answer this:\n${payload.instructions}\n` : ""}
-COMPUTED METRICS (already calculated from live platform data - reproduce the relevant tables in the report and interpret them):
-
-${metricTables.map(metricTableToMarkdown).join("\n\n")}
-
-DATA SOURCES IN SCOPE:
-
-${sourceBlocks.map((b) => `## ${b.title}\n${b.body}`).join("\n\n")}
-
-Structure the output as a professional markdown document: a # title, ## Executive Summary, then sections interpreting each selected metric, notable incidents, trends and prioritised recommendations appropriate to a ${typeTitle}.${payload.instructions ? " Include a dedicated section that directly addresses the analyst's brief above." : ""} Ground every claim in the data provided; where a table is empty, say so plainly rather than inventing figures.`;
-
+  let prompt;
   try {
-    const message = await anthropic().messages.create({
-      model: AI_MODEL,
-      max_tokens: 4000,
-      system: COMRIC_CONTEXT,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const content = textFromMessage(message);
-
-    const parameters: ReportParameters = { builder: payload, metrics: metricTables };
-
-    const [report] = await db
-      .insert(aiReports)
-      .values({
-        title: `${typeTitle} - ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
-        reportType: payload.reportType,
-        content,
-        parameters,
-        generatedBy: g.user.id,
-      })
-      .returning();
-
-    await logActivity({
-      actor: g.user.id,
-      action: "ai.report_generate",
-      entityType: "ai_report",
-      entityId: report.id,
-      metadata: {
-        reportType: payload.reportType,
-        range: payload.range,
-        metrics: effective.metrics,
-        sources: effective.sources,
-      },
-    });
-    await createAlert({
-      type: "ai_complete",
-      title: `${typeTitle} generated`,
-      body: `Your ${typeTitle.toLowerCase()} is ready in Reports and the Archive.`,
-      severity: "low",
-      targetUser: g.user.id,
-      relatedEntityType: "ai_report",
-      relatedEntityId: report.id,
-    });
-
-    return NextResponse.json({ id: report.id, title: report.title, content });
+    prompt = await buildReportPrompt(payload);
   } catch (err) {
-    console.error("AI report generation failed", err);
+    console.error("AI report assembly failed", err);
     return NextResponse.json(
       { error: "Report generation failed. Please try again shortly." },
       { status: 502 },
     );
   }
+  const { system, user, snapshot } = prompt;
+
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let accumulated = "";
+      try {
+        const stream = anthropic().messages.stream({
+          model: AI_MODEL,
+          max_tokens: 4000,
+          system,
+          messages: [{ role: "user", content: user }],
+        });
+
+        for await (const event of stream) {
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            accumulated += event.delta.text;
+            controller.enqueue(encoder.encode(event.delta.text));
+          }
+        }
+        await stream.finalMessage();
+
+        const content = sanitizeAiText(accumulated);
+        const report = await persistReport({
+          payload,
+          metricTables: snapshot.metricTables,
+          content,
+          userId,
+          title: defaultReportTitle(snapshot.typeTitle),
+        });
+
+        await logActivity({
+          actor: userId,
+          action: "ai.report_generate",
+          entityType: "ai_report",
+          entityId: report.id,
+          metadata: {
+            reportType: payload.reportType,
+            range: payload.range,
+            metrics: snapshot.effective.metrics,
+            sources: snapshot.effective.sources,
+          },
+        });
+        await createAlert({
+          type: "ai_complete",
+          title: `${snapshot.typeTitle} generated`,
+          body: `Your ${snapshot.typeTitle.toLowerCase()} is ready in Reports and the Archive.`,
+          severity: "low",
+          targetUser: userId,
+          relatedEntityType: "ai_report",
+          relatedEntityId: report.id,
+        });
+
+        controller.enqueue(
+          encoder.encode(
+            `\n\u0000REPORT_META:${JSON.stringify({ id: report.id, title: report.title })}`,
+          ),
+        );
+      } catch (err) {
+        console.error("AI report streaming failed", err);
+        controller.enqueue(
+          encoder.encode(
+            "\n\u0000REPORT_ERROR:Report generation failed. Please try again shortly.",
+          ),
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(body, {
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
 }

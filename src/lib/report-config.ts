@@ -94,6 +94,36 @@ export function readReportParameters(value: unknown): Partial<ReportParameters> 
   return out;
 }
 
+/** Schedule flag stored inside a template's parameters jsonb (no migration). */
+export const TEMPLATE_SCHEDULES = ["weekly"] as const;
+export type TemplateSchedule = (typeof TEMPLATE_SCHEDULES)[number] | null;
+
+/** Shape stored in reportTemplates.parameters for scheduled-capable templates. */
+export type TemplateParameters = {
+  builder: BuilderPayload;
+  schedule: TemplateSchedule;
+};
+
+/**
+ * Best-effort narrowing of a template's jsonb parameters. Supports both the
+ * legacy format (raw builder payload at the top level) and the current
+ * { builder, schedule } wrapper.
+ */
+export function readTemplateParameters(value: unknown): Partial<TemplateParameters> {
+  if (!value || typeof value !== "object") return {};
+  const obj = value as Record<string, unknown>;
+  const wrapped = builderSchema.safeParse(obj.builder);
+  if (wrapped.success) {
+    return {
+      builder: wrapped.data,
+      schedule: obj.schedule === "weekly" ? "weekly" : null,
+    };
+  }
+  const legacy = builderSchema.safeParse(value);
+  if (legacy.success) return { builder: legacy.data, schedule: null };
+  return {};
+}
+
 export const RANGE_LABELS: Record<BuilderPayload["range"], string> = {
   "7d": "Last 7 days",
   "30d": "Last 30 days",

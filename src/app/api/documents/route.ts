@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { waitUntil } from "@vercel/functions";
 import { guard, jsonError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { documents, risks } from "@/lib/schema";
 import { logActivity } from "@/lib/activity";
+import { analyzeDocument } from "@/lib/analyze-document";
 import { eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
 const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+const ANALYSABLE_EXTENSIONS = ["pdf", "docx", "xlsx", "csv", "txt", "md"] as const;
 const ALLOWED_EXTENSIONS = ["pdf", "docx", "xlsx", "csv", "png", "jpg", "txt", "md"] as const;
 const ALLOWED_CATEGORIES = [
   "general",
@@ -126,5 +129,17 @@ export async function POST(request: Request) {
     metadata: { name: doc.name, fileType: doc.fileType, fileSize: doc.fileSize, category: doc.category },
   });
 
-  return NextResponse.json({ document: doc }, { status: 201 });
+  // Auto-analyse in the background after the response returns.
+  const autoAnalysing =
+    Boolean(process.env.ANTHROPIC_API_KEY) &&
+    (ANALYSABLE_EXTENSIONS as readonly string[]).includes(ext);
+  if (autoAnalysing) {
+    waitUntil(
+      analyzeDocument(doc.id, g.user.id).catch((err) =>
+        console.error("auto-analysis failed", err),
+      ),
+    );
+  }
+
+  return NextResponse.json({ document: doc, autoAnalysing }, { status: 201 });
 }

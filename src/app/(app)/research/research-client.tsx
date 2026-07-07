@@ -202,9 +202,13 @@ export function ResearchClient({
             <Sparkles className="h-4 w-4 text-digital" /> AI Research Analysis
           </h2>
           <p className="mt-1 text-sm text-muted">
-            {unprocessedCount} unprocessed scrape result{unprocessedCount === 1 ? "" : "s"} and{" "}
-            {entries.length} research entr{entries.length === 1 ? "y" : "ies"} available for the
-            next digest.
+            Ready for the next digest:{" "}
+            <span className="font-semibold text-ink">
+              {unprocessedCount.toLocaleString("en-ZA")}
+            </span>{" "}
+            new scrape result{unprocessedCount === 1 ? "" : "s"} ·{" "}
+            <span className="font-semibold text-ink">{entries.length.toLocaleString("en-ZA")}</span>{" "}
+            research entr{entries.length === 1 ? "y" : "ies"}
           </p>
         </div>
         {canAnalyse && (

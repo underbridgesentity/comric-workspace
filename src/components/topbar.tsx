@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Moon, Sun, LogOut, Sparkles } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { AiChatPanel } from "@/components/ai-chat";
 import { ROLE_LABELS } from "@/lib/permissions";
 import type { Role, Severity, AlertType } from "@/lib/schema";
 import { SEVERITY_COLORS } from "./ui";
@@ -107,9 +108,15 @@ export function Topbar({
     return "/alerts";
   }
 
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatSeed, setChatSeed] = useState<string | undefined>(undefined);
+
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (query.trim()) router.push(`/risks?q=${encodeURIComponent(query.trim())}`);
+    const q = query.trim();
+    setChatSeed(q || undefined);
+    setChatOpen(true);
+    setQuery("");
   }
 
   return (
@@ -130,8 +137,9 @@ export function Topbar({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask the AI, or search risks, intel, reports…"
-            aria-label="Search"
+            onFocus={() => undefined}
+            placeholder="Ask the AI about risks, intel, news, reports…"
+            aria-label="Ask the AI"
             className="w-full rounded-brand border border-hairline bg-surface py-2 pr-3 pl-9 text-sm text-ink placeholder:text-muted/60 transition-colors duration-150 focus:border-cyber/40"
           />
         </div>
@@ -218,6 +226,15 @@ export function Topbar({
         <span className="ml-1 hidden rounded-brand border border-hairline px-2.5 py-1 font-display text-[10px] font-bold tracking-wider text-muted uppercase lg:inline-block">
           {ROLE_LABELS[user.role]}
         </span>
+
+        <AiChatPanel
+          open={chatOpen}
+          initialQuestion={chatSeed}
+          onClose={() => {
+            setChatOpen(false);
+            setChatSeed(undefined);
+          }}
+        />
 
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}

@@ -38,8 +38,14 @@ export const dynamic = "force-dynamic";
 
 const SEVERITY_WEIGHT: Record<Severity, number> = { critical: 12, high: 6, medium: 3, low: 1 };
 const ACTIVE_STATUSES = ["open", "monitoring", "mitigating"] as const;
-/** Weighted-load ceiling that maps to a score of 100. */
-const SCORE_CEILING = 120;
+/**
+ * Asymptotic mapping of weighted risk load → 0–100 score: sensitive at
+ * low loads, approaches (but never pegs at) 100 as load grows.
+ */
+const SCORE_HALF_LOAD = 110;
+function loadToScore(load: number): number {
+  return Math.round(100 * (1 - Math.exp(-load / SCORE_HALF_LOAD)));
+}
 
 const CATEGORY_LABELS: Record<RiskCategory, string> = {
   infrastructure: "Infrastructure",
@@ -280,7 +286,7 @@ async function RiskPosturePanel() {
     (ACTIVE_STATUSES as readonly string[]).includes(r.status),
   );
   const weightedLoad = active.reduce((sum, r) => sum + SEVERITY_WEIGHT[r.severity], 0);
-  const score = Math.min(100, Math.max(0, Math.round((weightedLoad / SCORE_CEILING) * 100)));
+  const score = loadToScore(weightedLoad);
 
   // 8-week trend: weighted load of risks in flight at each week's end
   // (created by then, and not yet resolved/closed by then).
@@ -299,7 +305,7 @@ async function RiskPosturePanel() {
       month: "short",
       timeZone: "Africa/Johannesburg",
     }).format(weekEnd);
-    trend.push({ week: i === 0 ? "Now" : label, pressure: load });
+    trend.push({ week: i === 0 ? "Now" : label, pressure: loadToScore(load) });
   }
 
   // Drivers: top categories by weighted severity across active risks.

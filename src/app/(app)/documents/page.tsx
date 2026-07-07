@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, ilike, or, inArray } from "drizzle-orm";
+import { and, desc, eq, ilike, or, inArray, sql } from "drizzle-orm";
 import {
   FileText,
   FileSpreadsheet,
@@ -8,10 +8,11 @@ import {
   FileCode,
   FolderOpen,
   Link2,
+  Sparkles,
 } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { documents, users, risks } from "@/lib/schema";
+import { documents, documentAnalyses, users, risks } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import {
@@ -88,10 +89,12 @@ export default async function DocumentsPage({
     riskTitle: string | null;
   }[] = [];
   let openRisks: { id: string; title: string }[] = [];
+  let analysedIds = new Set<string>();
   let loadError = false;
 
   try {
-    [rows, openRisks] = await Promise.all([
+    let analysisRows: { documentId: string }[] = [];
+    [rows, openRisks, analysisRows] = await Promise.all([
       db
         .select({
           id: documents.id,
@@ -115,7 +118,13 @@ export default async function DocumentsPage({
         .from(risks)
         .where(inArray(risks.status, ["open", "monitoring", "mitigating"]))
         .orderBy(desc(risks.createdAt)),
+      db
+        .select({ documentId: documentAnalyses.documentId })
+        .from(documentAnalyses)
+        .groupBy(documentAnalyses.documentId)
+        .having(sql`count(*) > 0`),
     ]);
+    analysedIds = new Set(analysisRows.map((a) => a.documentId));
   } catch (err) {
     console.error("documents query failed", err);
     loadError = true;
@@ -123,6 +132,7 @@ export default async function DocumentsPage({
 
   const canUpload = can(role, "create", "document");
   const canDelete = can(role, "delete", "document");
+  const canAnalyse = can(role, "create", "research");
 
   const filterHref = (c?: string) => {
     const p = new URLSearchParams();
@@ -216,7 +226,22 @@ export default async function DocumentsPage({
                           <FileIcon ext={doc.fileType} />
                         </span>
                         <div className="min-w-0">
-                          <p className="truncate font-display font-bold text-ink">{doc.name}</p>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/documents/${doc.id}`}
+                              className="truncate font-display font-bold text-ink transition-colors hover:text-cyber"
+                            >
+                              {doc.name}
+                            </Link>
+                            {analysedIds.has(doc.id) && (
+                              <span
+                                className="inline-flex shrink-0 items-center gap-1 rounded-[4px] border border-cyber/40 bg-cyber/10 px-1.5 py-0.5 font-display text-[10px] font-bold tracking-wide text-cyber uppercase"
+                                title="AI analysis available"
+                              >
+                                <Sparkles className="h-2.5 w-2.5" /> AI
+                              </span>
+                            )}
+                          </div>
                           {doc.description && (
                             <p className="mt-0.5 line-clamp-1 text-xs text-muted">
                               {doc.description}
@@ -253,7 +278,15 @@ export default async function DocumentsPage({
                       {formatDate(doc.createdAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <DocumentRowActions id={doc.id} name={doc.name} canDelete={canDelete} />
+                      <DocumentRowActions
+                        id={doc.id}
+                        name={doc.name}
+                        canDelete={canDelete}
+                        canAnalyse={
+                          canAnalyse &&
+                          ["pdf", "docx", "xlsx", "csv", "txt", "md"].includes(doc.fileType)
+                        }
+                      />
                     </td>
                   </tr>
                 ))}

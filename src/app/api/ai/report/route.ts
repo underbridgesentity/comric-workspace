@@ -1,28 +1,18 @@
 import { NextResponse } from "next/server";
-import { desc, gte, sql } from "drizzle-orm";
-import { z } from "zod";
 import { guard, jsonError } from "@/lib/api";
 import { db } from "@/lib/db";
-import {
-  aiReports,
-  researchEntries,
-  risks,
-  scrapeResults,
-  sectorIntelligence,
-} from "@/lib/schema";
+import { aiReports } from "@/lib/schema";
 import { anthropic, AI_MODEL, COMRIC_CONTEXT, textFromMessage } from "@/lib/anthropic";
 import { logActivity } from "@/lib/activity";
 import { createAlert } from "@/lib/alert-engine";
+import { builderSchema, RANGE_LABELS, type ReportParameters } from "@/lib/report-config";
+import {
+  assembleMetricTables,
+  assembleSourceBlocks,
+  metricTableToMarkdown,
+} from "@/lib/report-data";
 
 export const maxDuration = 120;
-
-const requestSchema = z.object({
-  reportType: z.enum(["risk_summary", "sector_report", "research_digest"]),
-  focus: z.string().trim().max(2000).optional(),
-  range: z.enum(["7d", "30d", "90d", "all"]).default("30d"),
-});
-
-const RANGE_DAYS: Record<string, number | null> = { "7d": 7, "30d": 30, "90d": 90, all: null };
 
 const TYPE_TITLES: Record<string, string> = {
   risk_summary: "Risk Summary",
@@ -30,13 +20,19 @@ const TYPE_TITLES: Record<string, string> = {
   research_digest: "Research Digest",
 };
 
-/** Generate a full AI report from platform data and persist it. */
+/**
+ * Generate a configurable AI report from the report-builder payload:
+ * assemble only the selected metrics and data sources, brief Claude with the
+ * computed tables and the analyst's instructions, and persist the result
+ * together with the full builder state + data snapshot for exports.
+ */
 export async function POST(request: Request) {
   const g = await guard("create", "ai_report");
   if (g.error) return g.error;
 
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = builderSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("Invalid report request.");
+  const payload = parsed.data;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -45,92 +41,58 @@ export async function POST(request: Request) {
     );
   }
 
-  const days = RANGE_DAYS[parsed.data.range];
-  const since = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+  // Assemble only what the builder selected. Defaults keep the prompt
+  // grounded even when the user unticks everything.
+  const effective = {
+    ...payload,
+    metrics: payload.metrics.length > 0 ? payload.metrics : (["severity_distribution", "category_breakdown", "response_status"] as typeof payload.metrics),
+    sources: payload.sources.length > 0 ? payload.sources : (["risk_register"] as typeof payload.sources),
+  };
 
-  const [riskRows, intelRows, researchRows, scrapeStats] = await Promise.all([
-    db
-      .select()
-      .from(risks)
-      .where(since ? gte(risks.createdAt, since) : undefined)
-      .orderBy(desc(risks.createdAt))
-      .limit(50),
-    db
-      .select()
-      .from(sectorIntelligence)
-      .where(since ? gte(sectorIntelligence.createdAt, since) : undefined)
-      .orderBy(desc(sectorIntelligence.createdAt))
-      .limit(25),
-    db
-      .select()
-      .from(researchEntries)
-      .where(since ? gte(researchEntries.createdAt, since) : undefined)
-      .orderBy(desc(researchEntries.createdAt))
-      .limit(25),
-    db
-      .select({
-        total: sql<number>`count(*)::int`,
-        unprocessed: sql<number>`count(*) filter (where ${scrapeResults.processed} = false)::int`,
-      })
-      .from(scrapeResults)
-      .where(since ? gte(scrapeResults.scrapedAt, since) : undefined),
+  const [metricTables, sourceBlocks] = await Promise.all([
+    assembleMetricTables(effective),
+    assembleSourceBlocks(effective),
   ]);
 
-  const sevCounts: Record<string, number> = {};
-  const catCounts: Record<string, number> = {};
-  for (const r of riskRows) {
-    sevCounts[r.severity] = (sevCounts[r.severity] ?? 0) + 1;
-    catCounts[r.category] = (catCounts[r.category] ?? 0) + 1;
-  }
+  const typeTitle = TYPE_TITLES[payload.reportType] ?? "Report";
+  const scopeBits = [
+    RANGE_LABELS[payload.range],
+    payload.category ? `category: ${payload.category}` : null,
+    payload.severityFloor ? `severity ${payload.severityFloor} and above` : null,
+  ].filter(Boolean);
 
-  const dataBlock = `RISK SUMMARY STATS (${parsed.data.range}): total=${riskRows.length}; by severity: ${JSON.stringify(sevCounts)}; by category: ${JSON.stringify(catCounts)}
+  const prompt = `Generate a formal COMRiC ${typeTitle}.
 
-TOP RISKS:
-${riskRows
-  .slice(0, 20)
-  .map((r) => `- [${r.severity.toUpperCase()}/${r.category}/${r.status}] ${r.title}: ${r.description.slice(0, 200)}`)
-  .join("\n") || "(none)"}
+SCOPE: ${scopeBits.join(" · ")}
+${payload.instructions ? `\nANALYST'S BRIEF — the report must explicitly answer this:\n${payload.instructions}\n` : ""}
+COMPUTED METRICS (already calculated from live platform data — reproduce the relevant tables in the report and interpret them):
 
-SECTOR INTELLIGENCE:
-${intelRows
-  .map((i) => `- (${i.incidentType}${i.location ? `, ${i.location}` : ""}) ${i.title}: ${i.summary.slice(0, 200)}`)
-  .join("\n") || "(none)"}
+${metricTables.map(metricTableToMarkdown).join("\n\n")}
 
-RESEARCH ENTRIES:
-${researchRows
-  .map((e) => `- [${e.sourceType}] ${e.title}: ${(e.aiSummary ?? e.content).slice(0, 200)}`)
-  .join("\n") || "(none)"}
+DATA SOURCES IN SCOPE:
 
-SCRAPE PIPELINE: ${scrapeStats[0]?.total ?? 0} results captured in range, ${scrapeStats[0]?.unprocessed ?? 0} awaiting analysis.`;
+${sourceBlocks.map((b) => `## ${b.title}\n${b.body}`).join("\n\n")}
 
-  const typeTitle = TYPE_TITLES[parsed.data.reportType];
+Structure the output as a professional markdown document: a # title, ## Executive Summary, then sections interpreting each selected metric, notable incidents, trends and prioritised recommendations appropriate to a ${typeTitle}.${payload.instructions ? " Include a dedicated section that directly addresses the analyst's brief above." : ""} Ground every claim in the data provided; where a table is empty, say so plainly rather than inventing figures.`;
 
   try {
     const message = await anthropic().messages.create({
       model: AI_MODEL,
       max_tokens: 4000,
       system: COMRIC_CONTEXT,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a formal COMRiC ${typeTitle} covering the last ${parsed.data.range === "all" ? "full history" : parsed.data.range}.
-${parsed.data.focus ? `Special focus / instructions from the requester: ${parsed.data.focus}` : ""}
-
-Structure it as a professional markdown document: a # title, ## Executive Summary, then sections appropriate to a ${typeTitle} (threat landscape, category analysis, notable incidents, trends, recommendations). Ground every claim in the data below.
-
-${dataBlock}`,
-        },
-      ],
+      messages: [{ role: "user", content: prompt }],
     });
     const content = textFromMessage(message);
+
+    const parameters: ReportParameters = { builder: payload, metrics: metricTables };
 
     const [report] = await db
       .insert(aiReports)
       .values({
         title: `${typeTitle} — ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
-        reportType: parsed.data.reportType,
+        reportType: payload.reportType,
         content,
-        parameters: { range: parsed.data.range, focus: parsed.data.focus ?? null },
+        parameters,
         generatedBy: g.user.id,
       })
       .returning();
@@ -140,7 +102,12 @@ ${dataBlock}`,
       action: "ai.report_generate",
       entityType: "ai_report",
       entityId: report.id,
-      metadata: { reportType: parsed.data.reportType, range: parsed.data.range },
+      metadata: {
+        reportType: payload.reportType,
+        range: payload.range,
+        metrics: effective.metrics,
+        sources: effective.sources,
+      },
     });
     await createAlert({
       type: "ai_complete",

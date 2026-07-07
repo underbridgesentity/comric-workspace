@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { and, desc, eq, ilike, or, isNotNull, type SQL } from "drizzle-orm";
-import { Archive as ArchiveIcon, Download, FileText, Sparkles } from "lucide-react";
+import { Archive as ArchiveIcon, FileText, Sparkles } from "lucide-react";
+import { ReportExportButtons } from "@/components/report-export";
 import { db } from "@/lib/db";
 import { aiReports, researchEntries, reportTypeEnum, users, type ReportType } from "@/lib/schema";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -171,12 +172,7 @@ export default async function ArchivePage({
                     })}
                   </p>
                 </div>
-                <a
-                  href={`/api/reports/${r.id}/pdf`}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-muted hover:text-cyber"
-                >
-                  <Download className="h-3.5 w-3.5" /> PDF
-                </a>
+                <ReportExportButtons reportId={r.id} />
               </li>
             ))}
           </ul>

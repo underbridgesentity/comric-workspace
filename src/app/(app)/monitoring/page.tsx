@@ -87,17 +87,32 @@ export default async function MonitoringPage() {
         <div className="grid gap-4 md:grid-cols-2">
           {rows.map(({ risk, responsibleName }) => (
             <Card key={risk.id} accent={risk.severity === "critical" ? "red" : "amber"}>
-              <div
-                className="rounded-l-brand border-l-2 p-5"
-                style={{ borderLeftColor: SEVERITY_COLORS[risk.severity] }}
-              >
+              <div className="p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <Link
-                    href={`/risks/${risk.id}`}
-                    className="font-display text-base font-bold text-ink transition-colors hover:text-cyber"
-                  >
-                    {risk.title}
-                  </Link>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span
+                      aria-hidden
+                      className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px]"
+                      style={{
+                        backgroundColor: `${SEVERITY_COLORS[risk.severity]}1f`,
+                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 0 18px -6px ${SEVERITY_COLORS[risk.severity]}`,
+                      }}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{
+                          backgroundColor: SEVERITY_COLORS[risk.severity],
+                          boxShadow: `0 0 8px ${SEVERITY_COLORS[risk.severity]}`,
+                        }}
+                      />
+                    </span>
+                    <Link
+                      href={`/risks/${risk.id}`}
+                      className="font-display text-base font-bold text-ink transition-colors hover:text-cyber"
+                    >
+                      {risk.title}
+                    </Link>
+                  </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <SeverityBadge severity={risk.severity} />
                     <StatusBadge status={risk.status} />

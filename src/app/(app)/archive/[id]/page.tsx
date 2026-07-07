@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { ReportExportButtons } from "@/components/report-export";
 import { db } from "@/lib/db";
 import { aiReports, users } from "@/lib/schema";
 import { Card, PageHeader } from "@/components/ui";
@@ -54,14 +55,7 @@ export default async function ArchiveDetailPage({
           "en-ZA",
           { day: "numeric", month: "long", year: "numeric" },
         )}`}
-        actions={
-          <a
-            href={`/api/reports/${report.id}/pdf`}
-            className="inline-flex items-center gap-2 rounded-brand bg-cyber px-4 py-2 font-display text-sm font-bold text-black transition-all duration-150 hover:brightness-110"
-          >
-            <Download className="h-4 w-4" /> Download PDF
-          </a>
-        }
+        actions={<ReportExportButtons reportId={report.id} size="md" />}
       />
       <Card className="max-w-4xl p-8">
         <Markdown content={report.content} />

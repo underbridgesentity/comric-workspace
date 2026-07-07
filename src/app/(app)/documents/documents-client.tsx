@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2, Upload, X, Download, Paperclip } from "lucide-react";
+import Link from "next/link";
+import { Loader2, Trash2, Upload, X, Download, Paperclip, Sparkles, CheckCircle2 } from "lucide-react";
 import { GhostButton, PrimaryButton } from "@/components/ui";
 
 import { DOCUMENT_CATEGORIES } from "./categories";
@@ -20,6 +21,7 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
   const [linkedRiskId, setLinkedRiskId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<{ id: string; name: string } | null>(null);
 
   function reset() {
     setFileName(null);
@@ -49,13 +51,19 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
       if (linkedRiskId) form.set("linkedRiskId", linkedRiskId);
 
       const res = await fetch("/api/documents", { method: "POST", body: form });
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; document?: { id: string; name: string } }
+        | null;
       if (!res.ok) {
         setError(data?.error ?? "Upload failed. Try again.");
         return;
       }
       reset();
-      setOpen(false);
+      if (data?.document) {
+        setUploaded({ id: data.document.id, name: data.document.name });
+      } else {
+        setOpen(false);
+      }
       router.refresh();
     } catch {
       setError("Network error — upload failed.");
@@ -69,6 +77,44 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
       <PrimaryButton type="button" onClick={() => setOpen(true)}>
         <Upload className="h-4 w-4" /> Upload document
       </PrimaryButton>
+    );
+  }
+
+  if (uploaded) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-6 backdrop-blur-sm">
+        <div className="animate-rise mt-12 w-full max-w-lg rounded-brand border border-hairline bg-surface p-6 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-cyber" />
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display text-lg font-black tracking-tight text-ink">
+                Upload complete
+              </h2>
+              <p className="mt-1 truncate text-sm text-muted">
+                “{uploaded.name}” is now in the Document Hub. Want the AI to interpret it and
+                propose risks, intelligence and research?
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <GhostButton
+              type="button"
+              onClick={() => {
+                setUploaded(null);
+                setOpen(false);
+              }}
+            >
+              Done
+            </GhostButton>
+            <PrimaryButton
+              type="button"
+              onClick={() => router.push(`/documents/${uploaded.id}`)}
+            >
+              <Sparkles className="h-4 w-4" /> Analyse now
+            </PrimaryButton>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -207,10 +253,12 @@ export function DocumentRowActions({
   id,
   name,
   canDelete,
+  canAnalyse = false,
 }: {
   id: string;
   name: string;
   canDelete: boolean;
+  canAnalyse?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -238,6 +286,15 @@ export function DocumentRowActions({
   return (
     <div className="flex items-center justify-end gap-1.5">
       {error && <span className="text-xs text-sev-critical">{error}</span>}
+      {canAnalyse && (
+        <Link
+          href={`/documents/${id}`}
+          className="inline-flex items-center gap-1.5 rounded-brand border border-hairline px-2.5 py-1.5 font-display text-xs font-bold text-ink transition-colors hover:border-cyber/50 hover:text-cyber"
+          title="Analyse with AI"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> Analyse
+        </Link>
+      )}
       <a
         href={`/api/documents/${id}`}
         className="inline-flex items-center gap-1.5 rounded-brand border border-hairline px-2.5 py-1.5 font-display text-xs font-bold text-ink transition-colors hover:border-cyber/50 hover:text-cyber"

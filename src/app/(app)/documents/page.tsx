@@ -18,8 +18,8 @@ import {
   UploadPanel,
   DocumentRowActions,
   DocumentSearch,
-  DOCUMENT_CATEGORIES,
 } from "./documents-client";
+import { DOCUMENT_CATEGORIES } from "./categories";
 
 export const dynamic = "force-dynamic";
 

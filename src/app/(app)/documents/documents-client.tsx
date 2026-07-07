@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Trash2, Upload, X, Download, Paperclip } from "lucide-react";
 import { GhostButton, PrimaryButton } from "@/components/ui";
 
-export const DOCUMENT_CATEGORIES = [
-  "general",
-  "policy",
-  "report",
-  "evidence",
-  "contract",
-  "compliance",
-] as const;
+import { DOCUMENT_CATEGORIES } from "./categories";
 
 type RiskOption = { id: string; title: string };
 

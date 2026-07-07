@@ -20,7 +20,7 @@ const TITLES: Array<[string, string, string]> = [
   ["/analytics", "Live Analytics", "Sector metrics snapshot"],
   ["/reports", "Report Generation", "AI-drafted branded reports"],
   ["/archive", "Historical Archive", "All past reports and findings"],
-  ["/documents", "Document Hub", "Secure Cape Town-resident file store"],
+  ["/documents", "Document Hub", "Reports, evidence and shared files"],
   ["/users", "Users & Access", "Roles and account management"],
   ["/activity", "Activity Log", "Full audit trail"],
 ];

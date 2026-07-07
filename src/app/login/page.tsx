@@ -32,9 +32,6 @@ export default function LoginPage() {
           <LoginForm />
         </div>
 
-        <p className="mt-6 text-center text-xs text-muted">
-          Data resident in Cape Town, South Africa · POPIA compliant
-        </p>
       </div>
     </main>
   );

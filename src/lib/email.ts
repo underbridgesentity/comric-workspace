@@ -14,7 +14,7 @@ export async function sendAlertEmail(
   try {
     const resend = new Resend(key);
     await resend.emails.send({
-      from: "COMRiC Workspace <alerts@comric-workspace.co.za>",
+      from: "COMRiC Workspace <alerts@comricworkspace.co.za>",
       to,
       subject: `[COMRiC] ${subject}`,
       html: `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">

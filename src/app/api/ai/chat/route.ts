@@ -27,6 +27,11 @@ const STOPWORDS = new Set([
   "from", "are", "was", "were", "been", "will", "would", "could", "should",
   "tell", "show", "give", "list", "any", "how", "many", "much", "when", "where",
   "who", "why", "our", "your", "their", "risk", "risks",
+  // generic words that match almost every headline and dilute retrieval
+  "news", "recent", "recently", "latest", "today", "urgent", "current",
+  "currently", "update", "updates", "please", "right", "there", "week",
+  "month", "summary", "summarise", "summarize", "report", "reports",
+  "alert", "alerts", "platform", "data", "information", "anything",
 ]);
 
 function searchTerms(question: string): string[] {

@@ -18,7 +18,7 @@ export default function LoginPage() {
 
       <div className="animate-rise w-full max-w-sm">
         <div className="mb-8 flex items-baseline justify-center gap-2 text-ink select-none">
-          <ComricLogo size={30} />
+          <ComricLogo size={48} />
           <span className="font-display text-[11px] font-bold tracking-[0.3em] text-cyber">
             WORKSPACE
           </span>

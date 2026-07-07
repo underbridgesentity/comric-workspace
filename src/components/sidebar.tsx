@@ -95,7 +95,7 @@ export function Sidebar({
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-hairline bg-sidebar">
       <div className="flex h-16 items-center border-b border-hairline px-5">
         <Link href="/dashboard" className="flex items-baseline gap-2 text-ink select-none">
-          <ComricLogo size={17} />
+          <ComricLogo size={30} />
           <span className="font-display text-[9px] font-bold tracking-[0.25em] text-cyber">
             WORKSPACE
           </span>

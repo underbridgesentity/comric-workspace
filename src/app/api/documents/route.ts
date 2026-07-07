@@ -85,10 +85,10 @@ export async function POST(request: Request) {
     linkedRiskId = risk.id;
   }
 
-  let blob: { url: string };
+  let blob: { pathname: string };
   try {
     blob = await put(`documents/${file.name}`, file, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
       token,
     });
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     .values({
       name,
       description,
-      blobPathname: blob.url, // never returned to the client; downloads stream server-side
+      blobPathname: blob.pathname, // never returned to the client; downloads stream server-side
       fileType: ext,
       fileSize: file.size,
       category,

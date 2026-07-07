@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { del } from "@vercel/blob";
+import { del, get } from "@vercel/blob";
 import { eq } from "drizzle-orm";
 import { guard, jsonError } from "@/lib/api";
 import { db } from "@/lib/db";
@@ -40,15 +40,15 @@ export async function GET(_request: Request, context: RouteContext) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) return jsonError("Blob storage not configured", 503);
 
-  let upstream: Response;
+  let stream: ReadableStream | null;
   try {
-    upstream = await fetch(doc.blobPathname, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-  } catch {
+    const result = await get(doc.blobPathname, { access: "private", token });
+    stream = result?.stream ?? null;
+  } catch (err) {
+    console.error("blob fetch failed", err);
     return jsonError("Failed to reach blob storage", 502);
   }
-  if (!upstream.ok || !upstream.body) {
+  if (!stream) {
     return jsonError("Stored file could not be retrieved", 502);
   }
 
@@ -58,7 +58,7 @@ export async function GET(_request: Request, context: RouteContext) {
     ? safeName
     : `${safeName}.${doc.fileType}`;
 
-  return new NextResponse(upstream.body, {
+  return new NextResponse(stream, {
     status: 200,
     headers: {
       "Content-Type": contentType,

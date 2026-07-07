@@ -1,16 +1,13 @@
-# COMRiC Workspace — Demo Credentials
+# COMRiC Workspace — Accounts
 
-All demo accounts share the password: **`Comric#2026!`**
+All accounts share the password: **`Comric#2026!`** — rotate before wider rollout.
 
 | Role | Email | Name |
 |---|---|---|
-| CEO | `ceo@comric.co.za` | Nomvula Dlamini |
-| Operations Manager | `ops@comric.co.za` | Sipho Mokoena |
-| Analyst | `analyst@comric.co.za` | Thandi Nkosi |
-| Read-Only / Stakeholder | `stakeholder@comric.co.za` | Pieter van der Merwe |
+| CEO | `ceo@comric.co.za` | Thokozani Mvelase |
+| Operations Manager | `ops@comric.co.za` | Lutho Williams |
+| Analyst | `analyst@comric.co.za` | Sanele Mvelase |
+| Read-Only / Stakeholder | `stakeholder@comric.co.za` | Stakeholder Viewer |
 
-Additional seeded team members (same password): `lerato.molefe@`, `johan.botha@`,
-`zanele.khumalo@`, `ayanda.mthembu@` (ops manager), `riaan.fourie@` (read-only),
-`naledi.sithole@` — all `…@comric.co.za`.
-
-> Rotate or replace these accounts before real operational use.
+Production carries live data only (scraper + team uploads). The local dev seed
+(`npm run db:seed`) still loads demo content for development.

@@ -8,6 +8,13 @@
       "when": 1783416406564,
       "tag": "0000_productive_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783425237589,
+      "tag": "0001_silky_black_knight",
+      "breakpoints": true
     }
   ]
 }

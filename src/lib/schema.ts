@@ -259,6 +259,35 @@ export const alertThresholds = pgTable("alert_thresholds", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const reportTemplates = pgTable("report_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description"),
+  parameters: jsonb("parameters").notNull(),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id),
+  ...timestamps,
+});
+
+export const documentAnalyses = pgTable("document_analyses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("completed"), // completed | committed | failed
+  summary: text("summary").notNull(),
+  proposals: jsonb("proposals").notNull(),
+  committedAt: timestamp("committed_at", { withTimezone: true }),
+  createdBy: uuid("created_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ReportTemplate = typeof reportTemplates.$inferSelect;
+export type DocumentAnalysis = typeof documentAnalyses.$inferSelect;
+
 export type User = typeof users.$inferSelect;
 export type Risk = typeof risks.$inferSelect;
 export type RiskNote = typeof riskNotes.$inferSelect;

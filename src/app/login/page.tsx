@@ -1,4 +1,5 @@
 import { LoginForm } from "./login-form";
+import { ComricLogo } from "@/components/logo";
 
 export default function LoginPage() {
   return (
@@ -16,10 +17,8 @@ export default function LoginPage() {
       />
 
       <div className="animate-rise w-full max-w-sm">
-        <div className="mb-8 flex items-baseline justify-center gap-2 select-none">
-          <span className="font-display text-3xl font-black tracking-tight text-ink">
-            COMRiC
-          </span>
+        <div className="mb-8 flex items-baseline justify-center gap-2 text-ink select-none">
+          <ComricLogo size={30} />
           <span className="font-display text-[11px] font-bold tracking-[0.3em] text-cyber">
             WORKSPACE
           </span>

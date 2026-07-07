@@ -21,6 +21,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/permissions";
+import { ComricLogo } from "@/components/logo";
 import type { Role } from "@/lib/schema";
 
 type NavItem = {
@@ -93,8 +94,8 @@ export function Sidebar({
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-hairline bg-sidebar">
       <div className="flex h-16 items-center border-b border-hairline px-5">
-        <Link href="/dashboard" className="flex items-baseline gap-2 select-none">
-          <span className="font-display text-lg font-black tracking-tight text-ink">COMRiC</span>
+        <Link href="/dashboard" className="flex items-baseline gap-2 text-ink select-none">
+          <ComricLogo size={17} />
           <span className="font-display text-[9px] font-bold tracking-[0.25em] text-cyber">
             WORKSPACE
           </span>

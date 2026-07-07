@@ -16,9 +16,6 @@ import {
   FolderLock,
   Users,
   ScrollText,
-  KanbanSquare,
-  Target,
-  ListTodo,
 } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { ComricLogo } from "@/components/logo";
@@ -28,7 +25,6 @@ type NavItem = {
   href: string;
   label: string;
   icon: React.ReactNode;
-  phase2?: boolean;
   roles?: Role[];
 };
 
@@ -71,15 +67,6 @@ function navGroups(role: Role): NavGroup[] {
     });
   }
 
-  groups.push({
-    label: "PHASE 2",
-    items: [
-      { href: "#", label: "Project Tracker", icon: <KanbanSquare className={iconCls} />, phase2: true },
-      { href: "#", label: "KPI Dashboard", icon: <Target className={iconCls} />, phase2: true },
-      { href: "#", label: "Task Management", icon: <ListTodo className={iconCls} />, phase2: true },
-    ],
-  });
-
   return groups;
 }
 
@@ -111,26 +98,9 @@ export function Sidebar({
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const active =
-                  !item.phase2 &&
-                  (pathname === item.href ||
-                    (item.href !== "/research" && item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
-                    (item.href === "/research" && pathname === "/research"));
-                if (item.phase2) {
-                  return (
-                    <li key={item.label}>
-                      <span
-                        aria-disabled
-                        className="flex cursor-not-allowed items-center gap-2.5 rounded-brand px-2 py-1.5 text-sm text-muted/50"
-                      >
-                        {item.icon}
-                        <span className="flex-1">{item.label}</span>
-                        <span className="rounded-[4px] border border-hairline px-1.5 py-px font-display text-[9px] font-bold tracking-wider text-muted/70">
-                          PHASE 2
-                        </span>
-                      </span>
-                    </li>
-                  );
-                }
+                  pathname === item.href ||
+                  (item.href !== "/research" && item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
+                  (item.href === "/research" && pathname === "/research");
                 return (
                   <li key={item.href}>
                     <Link

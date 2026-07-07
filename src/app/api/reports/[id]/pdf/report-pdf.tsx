@@ -3,7 +3,7 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
 /**
  * COMRiC-branded PDF layout for AI reports. Markdown is parsed into a small
- * block model (headings / paragraphs / bullets) — robust to arbitrary model
+ * block model (headings / paragraphs / bullets) - robust to arbitrary model
  * output. Helvetica/Helvetica-Bold are built into @react-pdf/renderer, so no
  * network font registration is required and generation cannot fail on fonts.
  */
@@ -158,7 +158,7 @@ export function ReportPdf({
             <Text style={styles.wordmarkTag}>WORKSPACE</Text>
           </View>
           <Text style={styles.headerMeta}>
-            {title} — {generatedBy} — {generatedAt}
+            {title} - {generatedBy} - {generatedAt}
           </Text>
         </View>
 
@@ -184,7 +184,7 @@ export function ReportPdf({
           style={styles.footer}
           fixed
           render={({ pageNumber, totalPages }) =>
-            `COMRiC Workspace — Confidential — page ${pageNumber} of ${totalPages}`
+            `COMRiC Workspace - Confidential - page ${pageNumber} of ${totalPages}`
           }
         />
       </Page>

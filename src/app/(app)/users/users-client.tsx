@@ -145,7 +145,7 @@ export function InviteUserPanel() {
       setSuccess({ email: email.toLowerCase().trim(), password, emailed: data?.emailed ?? false });
       router.refresh();
     } catch {
-      setError("Network error — user not created.");
+      setError("Network error - user not created.");
     } finally {
       setBusy(false);
     }
@@ -182,11 +182,11 @@ export function InviteUserPanel() {
               Account for <span className="font-bold text-ink">{success.email}</span> is ready.{" "}
               {success.emailed
                 ? "A welcome email was sent."
-                : "Email delivery is not configured — hand over the credentials directly."}
+                : "Email delivery is not configured - hand over the credentials directly."}
             </p>
             <div className="rounded-brand border border-cyber/30 bg-cyber/5 p-4">
               <p className="mb-1 font-display text-[11px] font-bold tracking-wider text-muted uppercase">
-                Temporary password — shown once
+                Temporary password - shown once
               </p>
               <div className="flex items-center justify-between gap-2">
                 <code className="font-mono text-sm break-all text-ink">{success.password}</code>

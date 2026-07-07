@@ -28,7 +28,7 @@ async function findDocument(id: string) {
   return doc ?? null;
 }
 
-/** Download: streams the blob through the function — the blob URL is never exposed. */
+/** Download: streams the blob through the function - the blob URL is never exposed. */
 export async function GET(_request: Request, context: RouteContext) {
   const g = await guard("view", "document");
   if (g.error) return g.error;

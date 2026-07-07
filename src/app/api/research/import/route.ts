@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   if (g.error) return g.error;
 
   const parsed = importSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return jsonError("Provide 1–500 parsed CSV rows.");
+  if (!parsed.success) return jsonError("Provide 1-500 parsed CSV rows.");
 
   const valid: { title: string; content: string; keywords: string[]; raw: Record<string, unknown> }[] = [];
   const rejected: number[] = [];

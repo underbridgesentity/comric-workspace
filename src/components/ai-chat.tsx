@@ -44,7 +44,7 @@ export function AiChatPanel({
         setMessages((m) => [...m, { role: "assistant", content: data.reply! }]);
       }
     } catch {
-      setError("Network error — please try again.");
+      setError("Network error - please try again.");
     } finally {
       setBusy(false);
     }
@@ -95,7 +95,7 @@ export function AiChatPanel({
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           {messages.length === 0 && !busy && (
             <div className="rounded-brand border border-hairline bg-canvas p-4 text-sm text-muted">
-              Ask about anything on the platform — e.g.{" "}
+              Ask about anything on the platform - e.g.{" "}
               <em>&ldquo;What are our critical risks right now?&rdquo;</em>,{" "}
               <em>&ldquo;Any recent news about battery theft?&rdquo;</em> or{" "}
               <em>&ldquo;Summarise this week&rsquo;s alerts.&rdquo;</em>

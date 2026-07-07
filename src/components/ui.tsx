@@ -27,7 +27,7 @@ export function Card({
       className={`relative overflow-hidden rounded-brand border border-hairline bg-surface ${className}`}
       style={{ backgroundImage: layers, boxShadow: "var(--card-shadow)" }}
     >
-      {/* specular top edge — the "liquid gloss" highlight */}
+      {/* specular top edge - the "liquid gloss" highlight */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-x-3 top-0 h-px"

@@ -20,7 +20,7 @@ function johannesburgDateLabel(date = new Date()): string {
 }
 
 function briefingTitle(): string {
-  return `Daily Briefing — ${johannesburgDateLabel()}`;
+  return `Daily Briefing - ${johannesburgDateLabel()}`;
 }
 
 type BriefingPayload = {
@@ -101,7 +101,7 @@ function deterministicBriefing(data: LiveData): string {
 
   lines.push(`## Posture overview`);
   lines.push(
-    `The register currently tracks **${activeRisks.length} active risks** — ` +
+    `The register currently tracks **${activeRisks.length} active risks** - ` +
       `${bySeverity("critical")} critical, ${bySeverity("high")} high, ` +
       `${bySeverity("medium")} medium and ${bySeverity("low")} low. ` +
       (criticalAlerts.length > 0
@@ -112,7 +112,7 @@ function deterministicBriefing(data: LiveData): string {
   if (topRisks.length > 0) {
     lines.push(``, `## Priority risks`);
     for (const r of topRisks.slice(0, 5)) {
-      lines.push(`- **${r.title}** — ${r.severity} severity, ${r.category}, status ${r.status}.`);
+      lines.push(`- **${r.title}** - ${r.severity} severity, ${r.category}, status ${r.status}.`);
     }
   }
 
@@ -128,7 +128,7 @@ function deterministicBriefing(data: LiveData): string {
   if (criticalAlerts.length > 0) {
     lines.push(``, `## Outstanding critical alerts`);
     for (const a of criticalAlerts.slice(0, 4)) {
-      lines.push(`- **${a.title}** — ${a.body}`);
+      lines.push(`- **${a.title}** - ${a.body}`);
     }
   }
 

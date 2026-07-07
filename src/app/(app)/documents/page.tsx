@@ -265,7 +265,7 @@ export default async function DocumentsPage({
                           <span className="truncate">{doc.riskTitle}</span>
                         </Link>
                       ) : (
-                        <span className="text-xs text-muted/60">—</span>
+                        <span className="text-xs text-muted/60">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted">

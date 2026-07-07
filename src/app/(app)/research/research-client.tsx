@@ -43,7 +43,7 @@ Content-Type: application/json
 Cookie: <authenticated session>
 
 {
-  "title": "Vodacom tower battery theft cluster — KZN",
+  "title": "Vodacom tower battery theft cluster - KZN",
   "content": "Field report details...",
   "keywords": ["battery theft", "KZN", "towers"],
   "sourceType": "api"
@@ -157,7 +157,7 @@ export function ResearchClient({
       setNotice(
         `Imported ${data.inserted} row${data.inserted === 1 ? "" : "s"}${
           data.rejectedRows && data.rejectedRows.length > 0
-            ? ` — skipped rows ${data.rejectedRows.join(", ")} (missing title/content)`
+            ? ` - skipped rows ${data.rejectedRows.join(", ")} (missing title/content)`
             : ""
         }.`,
       );
@@ -406,7 +406,7 @@ export function ResearchClient({
             </GhostButton>
             {csvFileName && (
               <span className="text-sm text-muted">
-                <span className="text-ink">{csvFileName}</span> — {csvRows?.length ?? 0} rows
+                <span className="text-ink">{csvFileName}</span> - {csvRows?.length ?? 0} rows
                 parsed
               </span>
             )}

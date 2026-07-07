@@ -139,8 +139,8 @@ export function AnalyticsCharts({
         )}
       </ChartCard>
 
-      {/* Risks over time — gradient area, full width */}
-      <ChartCard title="Risks logged — last 12 weeks" insight={insights.weekly} className="lg:col-span-2">
+      {/* Risks over time - gradient area, full width */}
+      <ChartCard title="Risks logged - last 12 weeks" insight={insights.weekly} className="lg:col-span-2">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={weeklyData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
             <defs>
@@ -176,7 +176,7 @@ export function AnalyticsCharts({
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* Top keywords — horizontal bar */}
+      {/* Top keywords - horizontal bar */}
       <ChartCard title="Top matched keywords" insight={insights.keywords}>
         {keywordData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
@@ -215,7 +215,7 @@ export function AnalyticsCharts({
       </ChartCard>
 
       {/* Scrape volume line */}
-      <ChartCard title="Scrape volume — last 14 days" insight={insights.scrape}>
+      <ChartCard title="Scrape volume - last 14 days" insight={insights.scrape}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={scrapeVolume} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
             <CartesianGrid stroke={HAIRLINE} vertical={false} />
@@ -251,7 +251,7 @@ export function AnalyticsCharts({
 function NoData() {
   return (
     <div className="flex h-full items-center justify-center text-sm text-muted">
-      No data yet — charts populate as the pipeline runs.
+      No data yet - charts populate as the pipeline runs.
     </div>
   );
 }

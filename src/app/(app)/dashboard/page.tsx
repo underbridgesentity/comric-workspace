@@ -39,7 +39,7 @@ export const dynamic = "force-dynamic";
 const SEVERITY_WEIGHT: Record<Severity, number> = { critical: 12, high: 6, medium: 3, low: 1 };
 const ACTIVE_STATUSES = ["open", "monitoring", "mitigating"] as const;
 /**
- * Asymptotic mapping of weighted risk load → 0–100 score: sensitive at
+ * Asymptotic mapping of weighted risk load → 0-100 score: sensitive at
  * low loads, approaches (but never pegs at) 100 as load grows.
  */
 const SCORE_HALF_LOAD = 110;
@@ -179,7 +179,7 @@ async function fetchKpis(): Promise<Kpi[]> {
 
 function DeltaTag({ delta, upIsGood }: { delta: number; upIsGood: boolean }) {
   if (delta === 0) {
-    return <span className="font-display text-xs font-bold text-muted">— flat</span>;
+    return <span className="font-display text-xs font-bold text-muted">- flat</span>;
   }
   const positive = delta > 0;
   const good = positive === upIsGood;
@@ -328,7 +328,7 @@ async function RiskPosturePanel() {
           </p>
         </div>
         <span className="rounded-[4px] border border-hairline px-2 py-0.5 font-display text-[10px] font-bold tracking-wide text-muted uppercase">
-          0 – 100
+          0 - 100
         </span>
       </div>
 

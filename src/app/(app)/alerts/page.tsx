@@ -56,7 +56,7 @@ export default async function AlertsPage() {
         .orderBy(asc(users.fullName)),
     ]);
   }
-  const userName = (uid: string | null) => activeUsers.find((u) => u.id === uid)?.name ?? "—";
+  const userName = (uid: string | null) => activeUsers.find((u) => u.id === uid)?.name ?? "-";
 
   // Titles for risk click-throughs
   const riskIds = rows

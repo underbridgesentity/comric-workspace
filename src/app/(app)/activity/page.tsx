@@ -227,7 +227,7 @@ export default async function ActivityPage({
                       <td className="px-4 py-3 whitespace-nowrap text-muted">{row.entityType}</td>
                       <td className="max-w-md px-4 py-3">
                         <code className="block truncate font-mono text-[11px] text-muted">
-                          {compactJson(row.metadata) || "—"}
+                          {compactJson(row.metadata) || "-"}
                         </code>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-muted">

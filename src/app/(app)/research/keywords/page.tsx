@@ -63,7 +63,7 @@ export default async function KeywordsPage() {
         }))}
         results={recent.map((r) => ({
           id: r.id,
-          setName: r.setName ?? "—",
+          setName: r.setName ?? "-",
           sourceUrl: r.sourceUrl,
           title: r.title,
           snippet: r.snippet,

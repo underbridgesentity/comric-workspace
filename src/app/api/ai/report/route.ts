@@ -64,8 +64,8 @@ export async function POST(request: Request) {
   const prompt = `Generate a formal COMRiC ${typeTitle}.
 
 SCOPE: ${scopeBits.join(" · ")}
-${payload.instructions ? `\nANALYST'S BRIEF — the report must explicitly answer this:\n${payload.instructions}\n` : ""}
-COMPUTED METRICS (already calculated from live platform data — reproduce the relevant tables in the report and interpret them):
+${payload.instructions ? `\nANALYST'S BRIEF - the report must explicitly answer this:\n${payload.instructions}\n` : ""}
+COMPUTED METRICS (already calculated from live platform data - reproduce the relevant tables in the report and interpret them):
 
 ${metricTables.map(metricTableToMarkdown).join("\n\n")}
 
@@ -89,7 +89,7 @@ Structure the output as a professional markdown document: a # title, ## Executiv
     const [report] = await db
       .insert(aiReports)
       .values({
-        title: `${typeTitle} — ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
+        title: `${typeTitle} - ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
         reportType: payload.reportType,
         content,
         parameters,

@@ -66,7 +66,7 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
       }
       router.refresh();
     } catch {
-      setError("Network error — upload failed.");
+      setError("Network error - upload failed.");
     } finally {
       setBusy(false);
     }
@@ -148,7 +148,7 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
             </label>
             <label className="flex cursor-pointer items-center gap-2 rounded-brand border border-dashed border-hairline bg-canvas px-4 py-3 text-sm text-muted transition-colors hover:border-cyber/50 hover:text-ink">
               <Paperclip className="h-4 w-4 shrink-0" />
-              <span className="truncate">{fileName ?? "Choose a file (pdf, docx, xlsx, csv, png, jpg, txt, md — max 20MB)"}</span>
+              <span className="truncate">{fileName ?? "Choose a file (pdf, docx, xlsx, csv, png, jpg, txt, md - max 20MB)"}</span>
               <input
                 ref={fileRef}
                 type="file"
@@ -161,7 +161,7 @@ export function UploadPanel({ openRisks }: { openRisks: RiskOption[] }) {
 
           <div>
             <label className="mb-1 block font-display text-xs font-bold tracking-wide text-muted uppercase">
-              Display name <span className="normal-case font-normal">(optional — defaults to filename)</span>
+              Display name <span className="normal-case font-normal">(optional - defaults to filename)</span>
             </label>
             <input
               value={name}

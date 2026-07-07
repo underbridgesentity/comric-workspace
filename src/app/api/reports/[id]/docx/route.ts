@@ -170,7 +170,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
                   },
                   children: [
                     new TextRun({ text: "COMRiC WORKSPACE", bold: true, color: NAVY, size: 18 }),
-                    new TextRun({ text: "  —  Confidential", color: "5A6672", size: 18 }),
+                    new TextRun({ text: "  -  Confidential", color: "5A6672", size: 18 }),
                   ],
                 }),
               ],
@@ -186,7 +186,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
                   },
                   children: [
                     new TextRun({
-                      text: "COMRiC Workspace — Confidential — page ",
+                      text: "COMRiC Workspace - Confidential - page ",
                       color: "5A6672",
                       size: 16,
                     }),

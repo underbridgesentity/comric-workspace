@@ -166,7 +166,7 @@ export default async function RisksPage({
                     <td className="px-4 py-3">
                       <StatusBadge status={risk.status} />
                     </td>
-                    <td className="px-4 py-3 text-muted">{responsibleName ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted">{responsibleName ?? "-"}</td>
                     <td className="px-4 py-3 text-muted capitalize">
                       {risk.source.replace(/_/g, " ")}
                     </td>

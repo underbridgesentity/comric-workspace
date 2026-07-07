@@ -281,7 +281,7 @@ export function ReportsClient({
                     <button
                       type="button"
                       onClick={() => applyTemplate(t)}
-                      title={`${t.description ? `${t.description} — ` : ""}saved by ${t.createdBy}`}
+                      title={`${t.description ? `${t.description} - ` : ""}saved by ${t.createdBy}`}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-display text-xs font-bold transition-colors ${
                         appliedTemplateId === t.id ? "text-cyber" : "text-muted hover:text-ink"
                       }`}
@@ -351,7 +351,7 @@ export function ReportsClient({
             </div>
             {metrics.length === 0 && (
               <p className="mt-1.5 text-xs text-muted">
-                No metrics selected — a default set (severity, categories, status) will be used.
+                No metrics selected - a default set (severity, categories, status) will be used.
               </p>
             )}
           </div>
@@ -372,7 +372,7 @@ export function ReportsClient({
             </div>
             {sources.length === 0 && (
               <p className="mt-1.5 text-xs text-muted">
-                No sources selected — the risk register will be used by default.
+                No sources selected - the risk register will be used by default.
               </p>
             )}
           </div>
@@ -494,7 +494,7 @@ export function ReportsClient({
         </Card>
       ) : (
         <Card className="p-5 text-sm text-muted">
-          Your role has view-only access — the builder is disabled, but you can read and export any
+          Your role has view-only access - the builder is disabled, but you can read and export any
           generated report below or in the{" "}
           <Link href="/archive" className="text-digital hover:underline">
             archive
@@ -555,7 +555,7 @@ export function ReportsClient({
       ) : (
         !generated && (
           <p className="text-sm text-muted">
-            No reports yet — configure the builder above and generate your first report.
+            No reports yet - configure the builder above and generate your first report.
           </p>
         )
       )}

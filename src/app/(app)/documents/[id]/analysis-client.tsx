@@ -142,7 +142,7 @@ export function AnalysisSection({
       setLatest(data.analysis);
       router.refresh();
     } catch {
-      setRunError("Network error — the analysis could not be started.");
+      setRunError("Network error - the analysis could not be started.");
     } finally {
       setRunning(false);
     }
@@ -200,7 +200,7 @@ export function AnalysisSection({
             title="No analysis yet"
             hint={
               !analysableHint
-                ? `'.${fileType}' files cannot be analysed — text extraction supports pdf, docx, xlsx, csv, txt and md.`
+                ? `'.${fileType}' files cannot be analysed - text extraction supports pdf, docx, xlsx, csv, txt and md.`
                 : canAnalyse
                   ? "Run the AI analysis to extract findings and propose risks, intelligence and research from this document."
                   : "An analyst can run the AI analysis to extract structured records from this document."
@@ -339,7 +339,7 @@ function AnalysisReview({
       setResult(data.created);
       onCommitted(data.analysis);
     } catch {
-      setCommitError("Network error — nothing was committed.");
+      setCommitError("Network error - nothing was committed.");
     } finally {
       setCommitting(false);
     }
@@ -352,7 +352,7 @@ function AnalysisReview({
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-sev-critical" />
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-bold text-ink">
-              Analysis failed — the AI response could not be interpreted
+              Analysis failed - the AI response could not be interpreted
             </p>
             <p className="mt-1 text-xs text-muted">{formatDateTime(analysis.createdAt)}</p>
             <pre className="mt-3 max-h-48 overflow-auto rounded-brand border border-hairline bg-canvas p-3 text-xs whitespace-pre-wrap text-muted">
@@ -433,7 +433,7 @@ function AnalysisReview({
               result.intelligence.length +
               result.research.length ===
               0 &&
-              !result.linkedRiskId && <li>No proposals were selected — nothing was created.</li>}
+              !result.linkedRiskId && <li>No proposals were selected - nothing was created.</li>}
           </ul>
         </Card>
       )}
@@ -491,7 +491,7 @@ function AnalysisReview({
             {!committed && !result && (
               <span className="text-xs text-muted">
                 {canCommit
-                  ? `${selectedCount} of ${totalProposals} selected — untick anything that should not be created.`
+                  ? `${selectedCount} of ${totalProposals} selected - untick anything that should not be created.`
                   : "Your role can review these proposals but not commit them."}
               </span>
             )}

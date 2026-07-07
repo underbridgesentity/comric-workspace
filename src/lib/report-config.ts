@@ -4,7 +4,7 @@ import { z } from "zod";
  * Shared (client-safe) configuration for the configurable report builder:
  * metric/source catalogues, the builder payload schema and the shapes of
  * the computed data snapshot persisted alongside each generated report.
- * No DB imports here — this file is imported by client components.
+ * No DB imports here - this file is imported by client components.
  */
 
 export const METRIC_DEFS = {
@@ -55,7 +55,7 @@ export const builderSchema = z.object({
 
 export type BuilderPayload = z.infer<typeof builderSchema>;
 
-/** A computed metric table — persisted in aiReports.parameters and reused by exports. */
+/** A computed metric table - persisted in aiReports.parameters and reused by exports. */
 export type MetricTable = {
   key: MetricKey;
   title: string;

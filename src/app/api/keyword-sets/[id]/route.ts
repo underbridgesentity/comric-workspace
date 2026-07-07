@@ -46,7 +46,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
-  // delete keyword_set — ops_manager/ceo only per the permission matrix.
+  // delete keyword_set - ops_manager/ceo only per the permission matrix.
   const g = await guard("delete", "keyword_set");
   if (g.error) return g.error;
 

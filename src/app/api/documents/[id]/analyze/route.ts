@@ -106,7 +106,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
 You are interpreting a third-party / privately-shared document uploaded to the COMRiC document hub (e.g. an incident report from an industry peer). Extract structured, actionable records for the platform. Be conservative: only propose records that the document clearly supports; never invent incidents. Propose linkSuggestions ONLY where the document clearly relates to a risk on the provided register, using its exact id.
 
-You MUST respond with ONLY a single JSON object matching this schema — no prose, no markdown fences:
+You MUST respond with ONLY a single JSON object matching this schema - no prose, no markdown fences:
 ${RESPONSE_SCHEMA}`;
 
   const userContent = `Document name: ${doc.name}
@@ -145,7 +145,7 @@ ${extracted.text}
           {
             role: "user",
             content:
-              "That response was not valid JSON matching the required schema. Respond again with ONLY the JSON object — no markdown fences, no commentary.",
+              "That response was not valid JSON matching the required schema. Respond again with ONLY the JSON object - no markdown fences, no commentary.",
           },
         ],
       });

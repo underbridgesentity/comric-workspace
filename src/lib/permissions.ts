@@ -22,7 +22,7 @@ export type Resource =
  * components (hide/disable controls) and API route handlers (reject).
  */
 export function can(role: Role, action: Action, resource: Resource): boolean {
-  // Read-only: view dashboards, reports and data — nothing else.
+  // Read-only: view dashboards, reports and data - nothing else.
   if (role === "read_only") {
     if (action !== "view") return false;
     return resource !== "user" && resource !== "activity_log";

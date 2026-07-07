@@ -66,12 +66,12 @@ export async function POST() {
           content: `Analyse the research entries and freshly scraped news below for the COMRiC risk desk.
 
 Produce a markdown research digest with these sections:
-# Research Digest — ${new Date().toISOString().slice(0, 10)}
+# Research Digest - ${new Date().toISOString().slice(0, 10)}
 ## Executive Summary (3-5 bullets)
 ## Key Insights
 ## Emerging Trends
 ## Anomalies & Watch Items
-## Structured Findings (bullet list: finding — evidence reference [E#/S#] — suggested action)
+## Structured Findings (bullet list: finding - evidence reference [E#/S#] - suggested action)
 
 RESEARCH ENTRIES:
 ${entriesBlock || "(none)"}
@@ -86,7 +86,7 @@ ${scrapedBlock || "(none)"}`,
     const [report] = await db
       .insert(aiReports)
       .values({
-        title: `Research Digest — ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
+        title: `Research Digest - ${new Date().toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`,
         reportType: "research_digest",
         content,
         parameters: { entries: entries.length, scrapeResults: scraped.length },

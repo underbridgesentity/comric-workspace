@@ -117,7 +117,7 @@ export default async function IntelligencePage() {
               Unprocessed web-monitoring hits. Promote relevant items into the intelligence feed.
             </p>
             {unprocessed.length === 0 ? (
-              <p className="text-sm text-muted">Nothing waiting — all monitoring hits processed.</p>
+              <p className="text-sm text-muted">Nothing waiting - all monitoring hits processed.</p>
             ) : (
               <ul className="space-y-3">
                 {unprocessed.map((s) => (

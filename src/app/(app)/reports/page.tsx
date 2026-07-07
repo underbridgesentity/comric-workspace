@@ -46,7 +46,7 @@ export default async function ReportsPage() {
     <div className="animate-rise">
       <PageHeader
         title="Report Builder"
-        subtitle="Configure metrics, sources and scope — AI authors a board-ready report from live platform data."
+        subtitle="Configure metrics, sources and scope - AI authors a board-ready report from live platform data."
         actions={
           <Link
             href="/archive"

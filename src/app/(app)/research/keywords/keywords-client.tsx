@@ -112,7 +112,7 @@ export function KeywordsClient({
       if (!res.ok) throw new Error(data.error ?? "Scrape failed");
       const feedErrors = (data.sets ?? []).flatMap((s) => s.errors);
       setRunMessage(
-        `Scrape complete — ${data.totalInserted ?? 0} new result${(data.totalInserted ?? 0) === 1 ? "" : "s"}${feedErrors.length > 0 ? ` (${feedErrors.length} feed error${feedErrors.length === 1 ? "" : "s"})` : ""}.`,
+        `Scrape complete - ${data.totalInserted ?? 0} new result${(data.totalInserted ?? 0) === 1 ? "" : "s"}${feedErrors.length > 0 ? ` (${feedErrors.length} feed error${feedErrors.length === 1 ? "" : "s"})` : ""}.`,
       );
       router.refresh();
     } catch (err) {

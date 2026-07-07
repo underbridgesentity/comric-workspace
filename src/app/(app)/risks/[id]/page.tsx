@@ -66,7 +66,7 @@ export default async function RiskDetailPage({
         .from(users)
         .where(inArray(users.id, peopleIds))
     : [];
-  const nameOf = (uid: string | null) => people.find((p) => p.id === uid)?.name ?? "—";
+  const nameOf = (uid: string | null) => people.find((p) => p.id === uid)?.name ?? "-";
 
   const canUpdate = can(role, "update", "risk");
   const canNote = can(role, "create", "risk_note");

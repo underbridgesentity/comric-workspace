@@ -115,7 +115,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
     // Sheet 1: report meta + full text.
     const report = wb.addWorksheet(sanitizeSheetName("Report", usedNames));
-    styleHeaderRow(report.addRow(["COMRiC WORKSPACE — Confidential"]));
+    styleHeaderRow(report.addRow(["COMRiC WORKSPACE - Confidential"]));
     report.addRow([]);
     report.addRow(["Title", row.title]);
     report.addRow(["Type", row.reportType.replace(/_/g, " ")]);

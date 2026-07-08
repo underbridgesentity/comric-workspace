@@ -9,6 +9,16 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Canonical host: send the default production alias to the branded
+  // domain (pages only - API/cron clients must not be redirected).
+  const host = request.headers.get("host") ?? "";
+  if (host === "comric-workspace.vercel.app" && !pathname.startsWith("/api")) {
+    const url = new URL(request.url);
+    url.host = "www.comricworkspace.co.za";
+    url.port = "";
+    return NextResponse.redirect(url, 308);
+  }
+
   const isPublic =
     pathname.startsWith("/login") ||
     pathname.startsWith("/onboard") ||

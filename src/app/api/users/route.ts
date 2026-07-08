@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { guard, jsonError } from "@/lib/api";
+import { APP_URL } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
 import { logActivity } from "@/lib/activity";
@@ -38,8 +39,7 @@ export async function POST(request: Request) {
     .limit(1);
 
   const { token, tokenHash, expiresAt } = createInviteToken();
-  const origin = new URL(request.url).origin;
-  const setupUrl = `${origin}/onboard/${token}`;
+  const setupUrl = `${APP_URL}/onboard/${token}`;
 
   let created: {
     id: string;

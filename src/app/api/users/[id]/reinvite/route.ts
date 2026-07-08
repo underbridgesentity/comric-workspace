@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { guard, jsonError } from "@/lib/api";
+import { APP_URL } from "@/lib/app-url";
 import { db } from "@/lib/db";
 import { users } from "@/lib/schema";
 import { logActivity } from "@/lib/activity";
@@ -31,8 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     .set({ inviteTokenHash: tokenHash, inviteExpiresAt: expiresAt })
     .where(eq(users.id, target.id));
 
-  const origin = new URL(request.url).origin;
-  const setupUrl = `${origin}/onboard/${token}`;
+  const setupUrl = `${APP_URL}/onboard/${token}`;
 
   await logActivity({
     actor: g.user.id,

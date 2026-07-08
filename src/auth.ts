@@ -68,6 +68,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = user.role;
+      } else if (token.id) {
+        // Refresh role/active state from the DB so role changes and
+        // deactivations apply to page gates and API guards immediately,
+        // not only after re-login.
+        try {
+          const [row] = await db
+            .select({ role: users.role, isActive: users.isActive })
+            .from(users)
+            .where(eq(users.id, token.id as string))
+            .limit(1);
+          if (!row || !row.isActive) return null;
+          token.role = row.role;
+        } catch {
+          // DB hiccup: keep the existing token rather than logging out.
+        }
       }
       return token;
     },

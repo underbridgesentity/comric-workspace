@@ -45,13 +45,19 @@ function decodeEntities(input: string): string {
     .replace(/&amp;/g, "&");
 }
 
-/** Strip HTML tags and CDATA wrappers, collapse whitespace. */
+/**
+ * Strip HTML tags and CDATA wrappers, collapse whitespace. Tags are
+ * stripped both before AND after entity decoding: feeds like Google News
+ * ship entity-escaped markup (&lt;a href...&gt;) that only becomes a tag
+ * once decoded.
+ */
 function cleanText(input: string): string {
   return decodeEntities(
     input
       .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
       .replace(/<[^>]+>/g, " "),
   )
+    .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -7,14 +7,31 @@ import {
   Footer,
   Header,
   HeadingLevel,
+  ImageRun,
   Packer,
   PageNumber,
   Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
 } from "docx";
 import { guard, jsonError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { aiReports, users } from "@/lib/schema";
+import { readReportParameters, type MetricTable } from "@/lib/report-config";
+import { COMRIC_LOGO_ASPECT } from "@/lib/brand-assets";
+import {
+  CLASSIFICATION,
+  exportFilename,
+  formatReportDate,
+  logoPngBytes,
+  rangeLabel,
+  reportTypeLabel,
+  severityColor,
+} from "@/lib/export-shared";
 
 export const maxDuration = 60;
 
@@ -86,7 +103,10 @@ function inlineRuns(text: string): TextRun[] {
     );
 }
 
-const NAVY = "0A1420";
+const NAVY = "1D2331";
+const SLATE = "5A6672";
+const HAIRLINE = "D8DEE4";
+const CYBER_GREEN = "8EFF00";
 
 function blockToParagraph(block: Block): Paragraph {
   if (block.kind === "h1") {
@@ -100,7 +120,7 @@ function blockToParagraph(block: Block): Paragraph {
     return new Paragraph({
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 280, after: 120 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: "8EFF00", space: 2 } },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: CYBER_GREEN, space: 2 } },
       children: [new TextRun({ text: block.text, bold: true, color: NAVY, size: 26 })],
     });
   }
@@ -121,6 +141,71 @@ function blockToParagraph(block: Block): Paragraph {
   return new Paragraph({ spacing: { after: 120 }, children: inlineRuns(block.text) });
 }
 
+const CELL_BORDER = { style: BorderStyle.SINGLE, size: 4, color: HAIRLINE } as const;
+const CELL_BORDERS = {
+  top: CELL_BORDER,
+  bottom: CELL_BORDER,
+  left: CELL_BORDER,
+  right: CELL_BORDER,
+} as const;
+
+/** Render a metric snapshot as a styled Word table (Deep Navy header row,
+ *  severity heat colours applied to value cells on severity-labelled rows). */
+function metricTableToDocx(table: MetricTable): (Paragraph | Table)[] {
+  if (table.rows.length === 0) return [];
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: table.columns.map(
+      (col) =>
+        new TableCell({
+          borders: CELL_BORDERS,
+          shading: { type: ShadingType.SOLID, fill: NAVY, color: NAVY },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: col, bold: true, color: "FFFFFF", size: 18 })],
+            }),
+          ],
+        }),
+    ),
+  });
+  const bodyRows = table.rows.slice(0, 50).map((row) => {
+    const heat = severityColor(String(row[0] ?? ""));
+    return new TableRow({
+      children: table.columns.map((_, j) => {
+        const text = String(row[j] ?? "");
+        const isValueCell = j > 0 && heat !== undefined;
+        return new TableCell({
+          borders: CELL_BORDERS,
+          margins: { top: 40, bottom: 40, left: 100, right: 100 },
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text,
+                  size: 18,
+                  bold: isValueCell || (j === 0 && heat !== undefined),
+                  color: isValueCell ? heat.replace("#", "").toUpperCase() : NAVY,
+                }),
+              ],
+            }),
+          ],
+        });
+      }),
+    });
+  });
+  return [
+    new Paragraph({
+      spacing: { before: 200, after: 80 },
+      children: [new TextRun({ text: table.title, bold: true, color: NAVY, size: 22 })],
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [headerRow, ...bodyRows],
+    }),
+  ];
+}
+
 /** Render a persisted AI report as a branded, downloadable Word document. */
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const g = await guard("view", "ai_report");
@@ -135,6 +220,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
       title: aiReports.title,
       reportType: aiReports.reportType,
       content: aiReports.content,
+      parameters: aiReports.parameters,
       createdAt: aiReports.createdAt,
       generatedBy: users.fullName,
     })
@@ -145,14 +231,34 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
   if (!row) return jsonError("Report not found.", 404);
 
-  const generatedAt = row.createdAt.toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const generatedAt = formatReportDate(row.createdAt);
+  const stored = readReportParameters(row.parameters);
+  const range = rangeLabel(stored.builder);
+  const metricTables = (stored.metrics ?? []).filter((t) => t.rows.length > 0);
 
   try {
     const blocks = parseBlocks(row.content);
+    const logoWidth = 140;
+    const logoHeight = Math.round(logoWidth / COMRIC_LOGO_ASPECT);
+
+    const metricChildren: (Paragraph | Table)[] =
+      metricTables.length > 0
+        ? [
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 120, after: 120 },
+              border: {
+                bottom: { style: BorderStyle.SINGLE, size: 8, color: CYBER_GREEN, space: 2 },
+              },
+              children: [
+                new TextRun({ text: "Key metrics", bold: true, color: NAVY, size: 26 }),
+              ],
+            }),
+            ...metricTables.flatMap(metricTableToDocx),
+            new Paragraph({ spacing: { after: 200 }, children: [] }),
+          ]
+        : [];
+
     const doc = new Document({
       title: row.title,
       creator: "COMRiC Workspace",
@@ -166,11 +272,20 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
               children: [
                 new Paragraph({
                   border: {
-                    bottom: { style: BorderStyle.SINGLE, size: 4, color: "D8DEE4", space: 4 },
+                    bottom: { style: BorderStyle.SINGLE, size: 12, color: CYBER_GREEN, space: 6 },
                   },
                   children: [
-                    new TextRun({ text: "COMRiC WORKSPACE", bold: true, color: NAVY, size: 18 }),
-                    new TextRun({ text: "  -  Confidential", color: "5A6672", size: 18 }),
+                    new ImageRun({
+                      type: "png",
+                      data: logoPngBytes(),
+                      transformation: { width: logoWidth, height: logoHeight },
+                    }),
+                    new TextRun({
+                      text: `   WORKSPACE - ${reportTypeLabel(row.reportType)} - ${generatedAt}`,
+                      bold: true,
+                      color: SLATE,
+                      size: 16,
+                    }),
                   ],
                 }),
               ],
@@ -182,17 +297,17 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
                 new Paragraph({
                   alignment: AlignmentType.CENTER,
                   border: {
-                    top: { style: BorderStyle.SINGLE, size: 4, color: "D8DEE4", space: 4 },
+                    top: { style: BorderStyle.SINGLE, size: 4, color: HAIRLINE, space: 4 },
                   },
                   children: [
                     new TextRun({
-                      text: "COMRiC Workspace - Confidential - page ",
-                      color: "5A6672",
+                      text: "COMRiC Workspace - Confidential - Page ",
+                      color: SLATE,
                       size: 16,
                     }),
-                    new TextRun({ children: [PageNumber.CURRENT], color: "5A6672", size: 16 }),
-                    new TextRun({ text: " of ", color: "5A6672", size: 16 }),
-                    new TextRun({ children: [PageNumber.TOTAL_PAGES], color: "5A6672", size: 16 }),
+                    new TextRun({ children: [PageNumber.CURRENT], color: SLATE, size: 16 }),
+                    new TextRun({ text: " of ", color: SLATE, size: 16 }),
+                    new TextRun({ children: [PageNumber.TOTAL_PAGES], color: SLATE, size: 16 }),
                   ],
                 }),
               ],
@@ -204,15 +319,27 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
               children: [new TextRun({ text: row.title, bold: true, color: NAVY, size: 40 })],
             }),
             new Paragraph({
-              spacing: { after: 280 },
+              spacing: { after: 40 },
               children: [
                 new TextRun({
-                  text: `${row.reportType.replace(/_/g, " ")} · Generated by ${row.generatedBy ?? "COMRiC Workspace"} · ${generatedAt}`,
-                  color: "5A6672",
+                  text: `${reportTypeLabel(row.reportType)} - Generated by ${row.generatedBy ?? "COMRiC Workspace"} - ${generatedAt}${range ? ` - ${range}` : ""}`,
+                  color: SLATE,
                   size: 18,
                 }),
               ],
             }),
+            new Paragraph({
+              spacing: { after: 280 },
+              children: [
+                new TextRun({
+                  text: `Classification: ${CLASSIFICATION}`,
+                  bold: true,
+                  color: SLATE,
+                  size: 18,
+                }),
+              ],
+            }),
+            ...metricChildren,
             ...(blocks.length > 0
               ? blocks.map(blockToParagraph)
               : [new Paragraph({ children: [new TextRun({ text: row.content })] })]),
@@ -222,7 +349,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
                 new TextRun({
                   text: "This document was generated by the COMRiC Workspace AI reporting engine from live platform data. Distribution restricted to authorised COMRiC members.",
                   italics: true,
-                  color: "5A6672",
+                  color: SLATE,
                   size: 16,
                 }),
               ],
@@ -233,13 +360,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     });
 
     const buffer = await Packer.toBuffer(doc);
-    const filename = `${row.title.replace(/[^\w\d-]+/g, "-").replace(/-+/g, "-").toLowerCase()}.docx`;
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "content-type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-disposition": `attachment; filename="${exportFilename(row.title, "docx")}"`,
         "cache-control": "no-store",
       },
     });

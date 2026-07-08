@@ -75,6 +75,7 @@ export function AnalyticsCharts({
 }) {
   const hasSeverity = severityData.some((d) => d.value > 0);
   const hasCategory = categoryData.some((d) => d.value > 0);
+  const severitySlices = severityData.filter((d) => d.value > 0);
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -91,7 +92,7 @@ export function AnalyticsCharts({
                 cy="50%"
                 innerRadius="55%"
                 outerRadius="80%"
-                paddingAngle={3}
+                paddingAngle={severitySlices.length > 1 ? 3 : 0}
                 stroke="none"
               >
                 {severityData

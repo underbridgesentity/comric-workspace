@@ -51,6 +51,8 @@ export default async function UsersPage() {
     isActive: boolean;
     lastSeenAt: Date | null;
     createdAt: Date;
+    passwordHash: string | null;
+    inviteExpiresAt: Date | null;
   }[] = [];
   let loadError = false;
 
@@ -64,6 +66,8 @@ export default async function UsersPage() {
         isActive: users.isActive,
         lastSeenAt: users.lastSeenAt,
         createdAt: users.createdAt,
+        passwordHash: users.passwordHash,
+        inviteExpiresAt: users.inviteExpiresAt,
       })
       .from(users)
       .orderBy(desc(users.createdAt));
@@ -107,7 +111,12 @@ export default async function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((u) => (
+                {rows.map((u) => {
+                  const pendingInvite = u.passwordHash === null;
+                  const inviteExpired =
+                    pendingInvite &&
+                    (u.inviteExpiresAt === null || u.inviteExpiresAt.getTime() <= Date.now());
+                  return (
                   <tr
                     key={u.id}
                     className={`border-b border-hairline/60 last:border-0 hover:bg-ink/[0.02] dark:hover:bg-white/[0.02] ${
@@ -136,7 +145,21 @@ export default async function UsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusBadge status={u.isActive ? "active" : "inactive"} />
+                      <span className="inline-flex items-center gap-1.5">
+                        <StatusBadge status={u.isActive ? "active" : "inactive"} />
+                        {pendingInvite && (
+                          <span
+                            className="inline-flex items-center rounded-[4px] px-2 py-0.5 font-display text-[11px] font-bold tracking-wide uppercase"
+                            style={{
+                              color: "#f59e0b",
+                              backgroundColor: "#f59e0b1a",
+                              border: "1px solid #f59e0b33",
+                            }}
+                          >
+                            {inviteExpired ? "Invite expired" : "Pending invite"}
+                          </span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted">
                       {relativeTime(u.lastSeenAt)}
@@ -151,12 +174,14 @@ export default async function UsersPage() {
                           fullName: u.fullName,
                           role: u.role,
                           isActive: u.isActive,
+                          pendingInvite,
                         }}
                         isSelf={u.id === session?.user?.id}
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

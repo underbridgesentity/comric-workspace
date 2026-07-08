@@ -58,6 +58,6 @@ export class PermissionError extends Error {
 export const ROLE_LABELS: Record<Role, string> = {
   ceo: "CEO",
   ops_manager: "Operations Manager",
-  analyst: "Analyst",
+  analyst: "Team Member",
   read_only: "Read-Only",
 };

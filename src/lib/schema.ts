@@ -68,6 +68,9 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   themePreference: text("theme_preference").notNull().default("dark"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  // Invite onboarding: sha256 of the one-time setup token; cleared once used.
+  inviteTokenHash: text("invite_token_hash"),
+  inviteExpiresAt: timestamp("invite_expires_at", { withTimezone: true }),
   ...timestamps,
 });
 

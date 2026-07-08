@@ -39,9 +39,20 @@ export async function PATCH(
     return jsonError("You cannot deactivate your own account", 400);
   }
 
-  const updates: Partial<{ role: Role; isActive: boolean; fullName: string }> = {};
+  const updates: Partial<{
+    role: Role;
+    isActive: boolean;
+    fullName: string;
+    inviteTokenHash: string | null;
+    inviteExpiresAt: Date | null;
+  }> = {};
   if (parsed.data.role !== undefined) updates.role = parsed.data.role;
   if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive;
+  if (parsed.data.isActive === false) {
+    // Deactivating revokes any outstanding invite link.
+    updates.inviteTokenHash = null;
+    updates.inviteExpiresAt = null;
+  }
   if (parsed.data.fullName !== undefined) updates.fullName = parsed.data.fullName.trim();
 
   const [updated] = await db

@@ -137,7 +137,7 @@ export function ThresholdForm({ users }: { users: { id: string; name: string }[]
             {[
               ["ceo", "CEO"],
               ["ops_manager", "Operations Manager"],
-              ["analyst", "Analyst"],
+              ["analyst", "Team Member"],
             ].map(([v, l]) => (
               <option key={v} value={`role:${v}`}>
                 {l}

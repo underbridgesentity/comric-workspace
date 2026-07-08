@@ -82,28 +82,66 @@ export function AnalyticsCharts({
       {/* Severity donut */}
       <ChartCard title="Risk severity distribution" insight={insights.severity}>
         {hasSeverity ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={severityData.filter((d) => d.value > 0)}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius="55%"
-                outerRadius="80%"
-                paddingAngle={severitySlices.length > 1 ? 3 : 0}
-                stroke="none"
-              >
-                {severityData
-                  .filter((d) => d.value > 0)
-                  .map((d) => (
+          severitySlices.length === 1 ? (
+            // Recharts renders no sectors for a single-datum pie; draw the
+            // full ring directly so a one-severity register still charts.
+            <div className="flex h-full items-center justify-center">
+              <svg viewBox="0 0 200 200" className="h-full max-h-56">
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="68"
+                  fill="none"
+                  strokeWidth="26"
+                  stroke={SEVERITY_COLORS[severitySlices[0].name as Severity]}
+                />
+                <text
+                  x="100"
+                  y="94"
+                  textAnchor="middle"
+                  className="fill-ink font-display"
+                  style={{ fontSize: 34, fontWeight: 900, fill: "currentColor" }}
+                >
+                  {severitySlices[0].value}
+                </text>
+                <text
+                  x="100"
+                  y="120"
+                  textAnchor="middle"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    textTransform: "uppercase",
+                    fill: SEVERITY_COLORS[severitySlices[0].name as Severity],
+                  }}
+                >
+                  {severitySlices[0].name}
+                </text>
+              </svg>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={severitySlices}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="55%"
+                  outerRadius="80%"
+                  paddingAngle={3}
+                  stroke="none"
+                >
+                  {severitySlices.map((d) => (
                     <Cell key={d.name} fill={SEVERITY_COLORS[d.name as Severity]} />
                   ))}
-              </Pie>
-              <Tooltip contentStyle={tooltipStyle} />
-            </PieChart>
-          </ResponsiveContainer>
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          )
         ) : (
           <NoData />
         )}

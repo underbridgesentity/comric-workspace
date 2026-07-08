@@ -23,6 +23,7 @@ export default async function ResearchPage() {
         keywords: researchEntries.keywords,
         sourceType: researchEntries.sourceType,
         aiSummary: researchEntries.aiSummary,
+        rawData: researchEntries.rawData,
         createdAt: researchEntries.createdAt,
         createdBy: users.fullName,
       })
@@ -54,16 +55,20 @@ export default async function ResearchPage() {
         canCreate={can(role, "create", "research")}
         canAnalyse={can(role, "create", "ai_report")}
         unprocessedCount={unprocessed.length}
-        entries={entries.map((e) => ({
-          id: e.id,
-          title: e.title,
-          content: e.content,
-          keywords: e.keywords,
-          sourceType: e.sourceType,
-          aiSummary: e.aiSummary,
-          createdAt: e.createdAt.toISOString(),
-          createdBy: e.createdBy ?? "Unknown",
-        }))}
+        entries={entries.map((e) => {
+          const raw = (e.rawData ?? null) as { documentId?: string } | null;
+          return {
+            id: e.id,
+            title: e.title,
+            content: e.content,
+            keywords: e.keywords,
+            sourceType: e.sourceType,
+            aiSummary: e.aiSummary,
+            sourceDocumentId: raw?.documentId ?? null,
+            createdAt: e.createdAt.toISOString(),
+            createdBy: e.createdBy ?? "Unknown",
+          };
+        })}
       />
     </div>
   );

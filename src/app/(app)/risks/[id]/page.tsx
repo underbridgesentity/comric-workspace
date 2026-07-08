@@ -202,11 +202,20 @@ export default async function RiskDetailPage({
                     {risk.sourceUrl && (
                       <a
                         href={risk.sourceUrl}
-                        target="_blank"
+                        target={risk.sourceUrl.startsWith("/") ? undefined : "_blank"}
                         rel="noreferrer"
-                        className="ml-2 inline-flex items-center gap-1 text-cyber hover:brightness-110"
+                        className="ml-2 inline-flex items-center gap-1 text-cyber normal-case hover:brightness-110"
                       >
-                        link <ExternalLink className="h-3 w-3" />
+                        {risk.sourceUrl.startsWith("/documents/")
+                          ? "view source document"
+                          : (() => {
+                              try {
+                                return `via ${new URL(risk.sourceUrl).hostname.replace(/^www\./, "")}`;
+                              } catch {
+                                return "view source";
+                              }
+                            })()}
+                        <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
                   </dd>

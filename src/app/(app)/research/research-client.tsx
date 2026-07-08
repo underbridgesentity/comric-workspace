@@ -24,6 +24,7 @@ type Entry = {
   keywords: string[];
   sourceType: "web_scrape" | "csv_import" | "manual" | "api";
   aiSummary: string | null;
+  sourceDocumentId: string | null;
   createdAt: string;
   createdBy: string;
 };
@@ -292,6 +293,25 @@ export function ResearchClient({
                         >
                           {src.label}
                         </span>
+                        {e.sourceDocumentId && (
+                          <span
+                            role="link"
+                            tabIndex={0}
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              router.push(`/documents/${e.sourceDocumentId}`);
+                            }}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter") {
+                                ev.stopPropagation();
+                                router.push(`/documents/${e.sourceDocumentId}`);
+                              }
+                            }}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-[4px] border border-cyber/40 bg-cyber/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-cyber uppercase hover:brightness-110"
+                          >
+                            Source document
+                          </span>
+                        )}
                         {e.aiSummary && (
                           <span className="inline-flex items-center gap-1 rounded-[4px] border border-digital/40 bg-digital/10 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-digital uppercase">
                             <Sparkles className="h-2.5 w-2.5" /> AI summary

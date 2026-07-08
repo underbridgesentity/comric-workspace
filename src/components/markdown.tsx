@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isMarkdownTableLine, numericColumns, parseMarkdownTable } from "@/lib/export-shared";
 
 /** Render inline **bold**, *italic* and `code` spans. */
 function inline(text: string, keyPrefix: string): ReactNode[] {
@@ -40,6 +41,7 @@ export function Markdown({ content }: { content: string }) {
   const lines = content.split(/\r?\n/);
   const blocks: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
+  let table: string[] | null = null;
   let key = 0;
 
   const flushList = () => {
@@ -63,8 +65,68 @@ export function Markdown({ content }: { content: string }) {
     list = null;
   };
 
+  const flushTable = () => {
+    if (!table) return;
+    const parsed = parseMarkdownTable(table);
+    if (!parsed) {
+      // Fall back to plain paragraphs when the block is not a real table.
+      for (const l of table) {
+        blocks.push(
+          <p key={key++} className="text-sm leading-relaxed text-ink/90">
+            {inline(l, `p-${key}`)}
+          </p>,
+        );
+      }
+    } else {
+      const numeric = numericColumns(parsed);
+      const tKey = key++;
+      blocks.push(
+        <div key={tKey} className="overflow-x-auto rounded-brand border border-hairline">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-ink/5 dark:bg-white/5">
+                {parsed.columns.map((col, i) => (
+                  <th
+                    key={i}
+                    className={`px-3 py-2 font-display text-[11px] font-bold uppercase tracking-wide text-muted ${numeric[i] ? "text-right" : "text-left"}`}
+                  >
+                    {inline(col, `th-${tKey}-${i}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-hairline">
+              {parsed.rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) => (
+                    <td
+                      key={c}
+                      className={`px-3 py-2 text-sm text-ink/90 ${numeric[c] ? "text-right" : "text-left"}`}
+                    >
+                      {inline(cell, `td-${tKey}-${r}-${c}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+    }
+    table = null;
+  };
+
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
+
+    if (isMarkdownTableLine(line)) {
+      flushList();
+      if (!table) table = [];
+      table.push(line);
+      continue;
+    }
+    flushTable();
+
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     const ul = /^[-*]\s+(.*)$/.exec(line);
     const ol = /^\d+[.)]\s+(.*)$/.exec(line);
@@ -107,6 +169,7 @@ export function Markdown({ content }: { content: string }) {
     }
   }
   flushList();
+  flushTable();
 
   return <div className="space-y-2">{blocks}</div>;
 }

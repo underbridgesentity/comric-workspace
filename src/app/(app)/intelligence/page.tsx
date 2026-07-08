@@ -1,21 +1,57 @@
 import Link from "next/link";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { ExternalLink, Radar, Rss } from "lucide-react";
 import { db } from "@/lib/db";
 import { risks, scrapeResults, sectorIntelligence } from "@/lib/schema";
 import { auth } from "@/auth";
 import { can } from "@/lib/permissions";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { FilterBar } from "@/components/filter-bar";
+import { parseRange, rangeStart } from "@/lib/date-range";
 import { AddIntelligenceButton, LinkRiskSelect, PromoteButton } from "./intelligence-controls";
 
-export default async function IntelligencePage() {
+export default async function IntelligencePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
   const canCreate = can(role, "create", "intelligence");
   const canUpdate = can(role, "update", "intelligence");
+  const sp = await searchParams;
+  const get = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
 
-  const [items, unprocessed, openRisks] = await Promise.all([
-    db.select().from(sectorIntelligence).orderBy(desc(sectorIntelligence.createdAt)).limit(100),
+  const q = get("q").trim();
+  const incidentType = get("incidentType");
+  const range = parseRange(get("range") || undefined, "all");
+  const start = rangeStart(range);
+
+  const where: SQL[] = [];
+  if (q)
+    where.push(
+      or(
+        ilike(sectorIntelligence.title, `%${q}%`),
+        ilike(sectorIntelligence.summary, `%${q}%`),
+      )!,
+    );
+  if (incidentType) where.push(eq(sectorIntelligence.incidentType, incidentType));
+  if (start)
+    where.push(
+      gte(
+        sql`coalesce(${sectorIntelligence.occurredAt}, ${sectorIntelligence.createdAt})`,
+        start,
+      ),
+    );
+  const filtersActive = !!q || !!incidentType || range !== "all";
+
+  const [items, unprocessed, openRisks, incidentTypes] = await Promise.all([
+    db
+      .select()
+      .from(sectorIntelligence)
+      .where(where.length ? and(...where) : undefined)
+      .orderBy(desc(sectorIntelligence.createdAt))
+      .limit(100),
     db
       .select()
       .from(scrapeResults)
@@ -27,6 +63,10 @@ export default async function IntelligencePage() {
       .from(risks)
       .where(inArray(risks.status, ["open", "monitoring", "mitigating"]))
       .orderBy(asc(risks.title)),
+    db
+      .selectDistinct({ incidentType: sectorIntelligence.incidentType })
+      .from(sectorIntelligence)
+      .orderBy(asc(sectorIntelligence.incidentType)),
   ]);
 
   const linkedIds = items
@@ -48,15 +88,48 @@ export default async function IntelligencePage() {
         actions={canCreate ? <AddIntelligenceButton risks={openRisks} /> : undefined}
       />
 
+      <FilterBar
+        searchParam="q"
+        searchPlaceholder="Search intelligence…"
+        selects={[
+          {
+            name: "incidentType",
+            label: "Incident type",
+            options: incidentTypes.map((t) => ({
+              value: t.incidentType,
+              label: t.incidentType,
+            })),
+          },
+        ]}
+        rangeParam="range"
+        defaultRange="all"
+      />
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {items.length === 0 ? (
             <Card>
-              <EmptyState
-                icon={<Radar />}
-                title="No intelligence yet"
-                hint="Add incidents manually or promote items from monitoring."
-              />
+              {filtersActive ? (
+                <EmptyState
+                  icon={<Radar />}
+                  title="No intelligence matches your filters"
+                  hint="Try broadening the search, incident type or date range."
+                  action={
+                    <Link
+                      href="/intelligence"
+                      className="text-sm font-semibold text-cyber hover:brightness-110"
+                    >
+                      Clear filters
+                    </Link>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon={<Radar />}
+                  title="No intelligence yet"
+                  hint="Add incidents manually or promote items from monitoring."
+                />
+              )}
             </Card>
           ) : (
             items.map((i) => (

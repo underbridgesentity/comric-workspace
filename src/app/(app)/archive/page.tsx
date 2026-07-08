@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { and, desc, eq, ilike, or, isNotNull, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, isNotNull, type SQL } from "drizzle-orm";
 import { Archive as ArchiveIcon, FileText, Sparkles } from "lucide-react";
 import { ReportExportButtons } from "@/components/report-export";
 import { db } from "@/lib/db";
 import { aiReports, researchEntries, reportTypeEnum, users, type ReportType } from "@/lib/schema";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { parseRange, rangeStart, RANGE_PRESETS, type RangePreset } from "@/lib/date-range";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +35,16 @@ function TypeTag({ type }: { type: ReportType }) {
 export default async function ArchivePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; range?: string }>;
 }) {
-  const { q, type } = await searchParams;
+  const { q, type, range: rangeParam } = await searchParams;
   const query = (q ?? "").trim();
   const typeFilter = reportTypeEnum.enumValues.find((t) => t === type);
+  const range = parseRange(rangeParam, "all");
+  const start = rangeStart(range);
 
   const reportConditions: SQL[] = [];
+  if (start) reportConditions.push(gte(aiReports.createdAt, start));
   if (query) {
     const cond = or(ilike(aiReports.title, `%${query}%`), ilike(aiReports.content, `%${query}%`));
     if (cond) reportConditions.push(cond);
@@ -48,6 +52,7 @@ export default async function ArchivePage({
   if (typeFilter) reportConditions.push(eq(aiReports.reportType, typeFilter));
 
   const researchConditions: SQL[] = [isNotNull(researchEntries.aiSummary)];
+  if (start) researchConditions.push(gte(researchEntries.createdAt, start));
   if (query) {
     const cond = or(
       ilike(researchEntries.title, `%${query}%`),
@@ -87,14 +92,31 @@ export default async function ArchivePage({
           .limit(50),
   ]);
 
+  const archiveHref = (overrides: { type?: string; range?: RangePreset }) => {
+    const sp = new URLSearchParams();
+    if (query) sp.set("q", query);
+    const nextType = "type" in overrides ? overrides.type : typeFilter;
+    if (nextType) sp.set("type", nextType);
+    const nextRange = overrides.range ?? range;
+    if (nextRange !== "all") sp.set("range", nextRange);
+    const s = sp.toString();
+    return s ? `/archive?${s}` : "/archive";
+  };
+
   const filters: { label: string; href: string; active: boolean }[] = [
-    { label: "All", href: `/archive${query ? `?q=${encodeURIComponent(query)}` : ""}`, active: !typeFilter },
+    { label: "All", href: archiveHref({ type: undefined }), active: !typeFilter },
     ...reportTypeEnum.enumValues.map((t) => ({
       label: TYPE_LABELS[t],
-      href: `/archive?type=${t}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+      href: archiveHref({ type: t }),
       active: typeFilter === t,
     })),
   ];
+
+  const rangeChips = RANGE_PRESETS.map((r) => ({
+    label: r === "all" ? "All time" : r,
+    href: archiveHref({ range: r }),
+    active: range === r,
+  }));
 
   return (
     <div className="animate-rise">
@@ -107,6 +129,7 @@ export default async function ArchivePage({
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <form method="get" action="/archive" className="flex items-center gap-2">
           {typeFilter && <input type="hidden" name="type" value={typeFilter} />}
+          {range !== "all" && <input type="hidden" name="range" value={range} />}
           <input
             type="search"
             name="q"
@@ -133,6 +156,21 @@ export default async function ArchivePage({
               }`}
             >
               {f.label}
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Date range">
+          {rangeChips.map((r) => (
+            <Link
+              key={r.label}
+              href={r.href}
+              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
+                r.active
+                  ? "border-cyber/60 bg-cyber/10 text-cyber"
+                  : "border-hairline text-muted hover:text-ink"
+              }`}
+            >
+              {r.label}
             </Link>
           ))}
         </div>

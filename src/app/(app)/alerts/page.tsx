@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { BellOff, SlidersHorizontal } from "lucide-react";
 import { db } from "@/lib/db";
-import { alerts, alertThresholds, users, risks } from "@/lib/schema";
+import { alerts, alertThresholds, alertTypeEnum, users, risks, type AlertType } from "@/lib/schema";
+import { parseRange, rangeStart, RANGE_PRESETS, type RangePreset } from "@/lib/date-range";
 import { auth } from "@/auth";
 import { can } from "@/lib/permissions";
 import {
@@ -29,16 +30,79 @@ function alertHref(entityType: string | null, entityId: string | null): string |
   return null;
 }
 
-export default async function AlertsPage() {
+const TYPE_LABELS: Record<AlertType, string> = {
+  risk_escalation: "Risk escalation",
+  new_intelligence: "New intelligence",
+  ai_complete: "AI complete",
+  task_assigned: "Task assigned",
+};
+
+export default async function AlertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; type?: string; range?: string }>;
+}) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
   const userId = session?.user?.id ?? "";
   const canManage = can(role, "manage", "alert_threshold");
+  const sp = await searchParams;
+
+  const unreadOnly = sp.filter === "unread";
+  const typeFilter = alertTypeEnum.enumValues.find((t) => t === sp.type);
+  const range = parseRange(sp.range, "all");
+  const start = rangeStart(range);
+  const filtersActive = unreadOnly || !!typeFilter || range !== "all";
+
+  const where: SQL[] = [or(eq(alerts.targetUser, userId), isNull(alerts.targetUser))!];
+  if (unreadOnly) where.push(eq(alerts.isRead, false));
+  if (typeFilter) where.push(eq(alerts.type, typeFilter));
+  if (start) where.push(gte(alerts.createdAt, start));
+
+  const alertsHref = (overrides: {
+    filter?: string;
+    type?: AlertType;
+    range?: RangePreset;
+    reset?: boolean;
+  }) => {
+    const q = new URLSearchParams();
+    const nextFilter =
+      "reset" in overrides && overrides.reset
+        ? undefined
+        : "filter" in overrides
+          ? overrides.filter
+          : unreadOnly
+            ? "unread"
+            : undefined;
+    const nextType =
+      overrides.reset ? undefined : "type" in overrides ? overrides.type : typeFilter;
+    const nextRange = overrides.range ?? range;
+    if (nextFilter) q.set("filter", nextFilter);
+    if (nextType) q.set("type", nextType);
+    if (nextRange !== "all") q.set("range", nextRange);
+    const s = q.toString();
+    return s ? `/alerts?${s}` : "/alerts";
+  };
+
+  const chips: { label: string; href: string; active: boolean }[] = [
+    { label: "All", href: alertsHref({ reset: true, range }), active: !unreadOnly && !typeFilter },
+    { label: "Unread", href: alertsHref({ filter: "unread" }), active: unreadOnly },
+    ...alertTypeEnum.enumValues.map((t) => ({
+      label: TYPE_LABELS[t],
+      href: alertsHref({ type: t }),
+      active: typeFilter === t,
+    })),
+  ];
+  const rangeChips = RANGE_PRESETS.map((r) => ({
+    label: r === "all" ? "All time" : r,
+    href: alertsHref({ range: r }),
+    active: range === r,
+  }));
 
   const rows = await db
     .select()
     .from(alerts)
-    .where(or(eq(alerts.targetUser, userId), isNull(alerts.targetUser)))
+    .where(and(...where))
     .orderBy(desc(alerts.createdAt))
     .limit(100);
 
@@ -77,12 +141,54 @@ export default async function AlertsPage() {
         actions={<MarkAllReadButton unreadIds={unreadIds} />}
       />
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((c) => (
+            <Link
+              key={c.label}
+              href={c.href}
+              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
+                c.active
+                  ? "border-cyber/60 bg-cyber/10 text-cyber"
+                  : "border-hairline text-muted hover:text-ink"
+              }`}
+            >
+              {c.label}
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Date range">
+          {rangeChips.map((r) => (
+            <Link
+              key={r.label}
+              href={r.href}
+              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
+                r.active
+                  ? "border-cyber/60 bg-cyber/10 text-cyber"
+                  : "border-hairline text-muted hover:text-ink"
+              }`}
+            >
+              {r.label}
+            </Link>
+          ))}
+        </div>
+        {filtersActive && (
+          <Link href="/alerts" className="text-sm font-semibold text-cyber hover:brightness-110">
+            Clear filters
+          </Link>
+        )}
+      </div>
+
       <Card>
         {rows.length === 0 ? (
           <EmptyState
             icon={<BellOff />}
-            title="No alerts"
-            hint="Escalations, new intelligence and AI completions will show up here."
+            title={filtersActive ? "No alerts match your filters" : "No alerts"}
+            hint={
+              filtersActive
+                ? "Try a different type, read state or date range."
+                : "Escalations, new intelligence and AI completions will show up here."
+            }
           />
         ) : (
           <ul className="divide-y divide-hairline">

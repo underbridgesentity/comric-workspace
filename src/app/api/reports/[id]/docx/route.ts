@@ -27,10 +27,15 @@ import {
   CLASSIFICATION,
   exportFilename,
   formatReportDate,
+  isMarkdownTableLine,
   logoPngBytes,
+  numericColumns,
+  parseMarkdownTable,
   rangeLabel,
   reportTypeLabel,
   severityColor,
+  stripCellBold,
+  type ParsedTable,
 } from "@/lib/export-shared";
 
 export const maxDuration = 60;
@@ -43,7 +48,8 @@ export const maxDuration = 60;
 type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
   | { kind: "p"; text: string }
-  | { kind: "bullet"; text: string };
+  | { kind: "bullet"; text: string }
+  | { kind: "table"; table: ParsedTable };
 
 function stripInlineExceptBold(text: string): string {
   return text
@@ -57,14 +63,32 @@ function stripInlineExceptBold(text: string): string {
 function parseBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
+  let tableLines: string[] = [];
   const flush = () => {
     if (paragraph.length > 0) {
       blocks.push({ kind: "p", text: stripInlineExceptBold(paragraph.join(" ")) });
       paragraph = [];
     }
   };
+  const flushTable = () => {
+    if (tableLines.length === 0) return;
+    const parsed = parseMarkdownTable(tableLines);
+    if (parsed) {
+      blocks.push({ kind: "table", table: parsed });
+    } else {
+      // Fall back to plain paragraphs when the candidate is not a table.
+      for (const l of tableLines) blocks.push({ kind: "p", text: stripInlineExceptBold(l) });
+    }
+    tableLines = [];
+  };
   for (const raw of markdown.split("\n")) {
     const trimmed = raw.trim();
+    if (isMarkdownTableLine(trimmed)) {
+      flush();
+      tableLines.push(trimmed);
+      continue;
+    }
+    flushTable();
     if (!trimmed || /^(-{3,}|\*{3,})$/.test(trimmed)) {
       flush();
       continue;
@@ -88,6 +112,7 @@ function parseBlocks(markdown: string): Block[] {
     paragraph.push(trimmed);
   }
   flush();
+  flushTable();
   return blocks;
 }
 
@@ -108,7 +133,7 @@ const SLATE = "5A6672";
 const HAIRLINE = "D8DEE4";
 const CYBER_GREEN = "8EFF00";
 
-function blockToParagraph(block: Block): Paragraph {
+function blockToParagraph(block: Exclude<Block, { kind: "table" }>): Paragraph {
   if (block.kind === "h1") {
     return new Paragraph({
       heading: HeadingLevel.HEADING_1,
@@ -148,6 +173,59 @@ const CELL_BORDERS = {
   left: CELL_BORDER,
   right: CELL_BORDER,
 } as const;
+
+/** Render a markdown table from the report body as a styled Word table,
+ *  matching the Key metrics treatment (Deep Navy shaded header, white bold
+ *  text, hairline borders). Numeric columns are right-aligned. */
+function markdownTableToDocx(table: ParsedTable): Table {
+  const numeric = numericColumns(table);
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: table.columns.map(
+      (col, j) =>
+        new TableCell({
+          borders: CELL_BORDERS,
+          shading: { type: ShadingType.SOLID, fill: NAVY, color: NAVY },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [
+            new Paragraph({
+              alignment: numeric[j] ? AlignmentType.RIGHT : AlignmentType.LEFT,
+              children: [
+                new TextRun({
+                  text: stripCellBold(col),
+                  bold: true,
+                  color: "FFFFFF",
+                  size: 18,
+                }),
+              ],
+            }),
+          ],
+        }),
+    ),
+  });
+  const bodyRows = table.rows.map(
+    (row) =>
+      new TableRow({
+        children: table.columns.map(
+          (_, j) =>
+            new TableCell({
+              borders: CELL_BORDERS,
+              margins: { top: 40, bottom: 40, left: 100, right: 100 },
+              children: [
+                new Paragraph({
+                  alignment: numeric[j] ? AlignmentType.RIGHT : AlignmentType.LEFT,
+                  children: inlineRuns(row[j] ?? ""),
+                }),
+              ],
+            }),
+        ),
+      }),
+  );
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [headerRow, ...bodyRows],
+  });
+}
 
 /** Render a metric snapshot as a styled Word table (Deep Navy header row,
  *  severity heat colours applied to value cells on severity-labelled rows). */
@@ -341,7 +419,14 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
             }),
             ...metricChildren,
             ...(blocks.length > 0
-              ? blocks.map(blockToParagraph)
+              ? blocks.flatMap((block): (Paragraph | Table)[] =>
+                  block.kind === "table"
+                    ? [
+                        markdownTableToDocx(block.table),
+                        new Paragraph({ spacing: { after: 120 }, children: [] }),
+                      ]
+                    : [blockToParagraph(block)],
+                )
               : [new Paragraph({ children: [new TextRun({ text: row.content })] })]),
             new Paragraph({
               spacing: { before: 360 },

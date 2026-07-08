@@ -45,6 +45,104 @@ export function rangeLabel(builder: Partial<BuilderPayload> | undefined): string
   return range && range in RANGE_LABELS ? RANGE_LABELS[range as BuilderPayload["range"]] : null;
 }
 
+/** A GitHub-style markdown table parsed from AI report content. */
+export type ParsedTable = { columns: string[]; rows: string[][] };
+
+const SEPARATOR_CELL = /^:?-{2,}:?$/;
+
+/** Split a pipe-delimited line into trimmed cells, dropping empty cells. */
+function splitPipeCells(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s
+    .split("|")
+    .map((c) => c.trim())
+    .filter((c) => c !== "");
+}
+
+/** True when a line looks like the start/continuation of a markdown table. */
+export function isMarkdownTableLine(line: string): boolean {
+  return line.trim().startsWith("|") && splitPipeCells(line).length >= 2;
+}
+
+/**
+ * Parse a run of consecutive pipe lines into a table. Handles the normal
+ * header / separator / rows layout as well as the degenerate case where the
+ * whole table is emitted on one or two lines (header, separator and rows
+ * concatenated): the embedded `---` separator cells mark the end of the
+ * header, and remaining cells are chunked into rows of the header's width.
+ * Ragged rows are padded / split; returns null (never throws) when the
+ * candidate cannot be parsed into at least 2 columns and 1 row.
+ */
+export function parseMarkdownTable(lines: string[]): ParsedTable | null {
+  try {
+    const perLine = lines.map(splitPipeCells).filter((cells) => cells.length > 0);
+    if (perLine.length === 0) return null;
+
+    let columns = perLine[0];
+    let bodyLines = perLine.slice(1);
+
+    const sepIdx = columns.findIndex((c) => SEPARATOR_CELL.test(c));
+    if (sepIdx !== -1) {
+      // Degenerate single-line table: header, separator and rows on one line.
+      if (sepIdx < 2) return null;
+      let i = sepIdx;
+      while (i < columns.length && SEPARATOR_CELL.test(columns[i])) i++;
+      bodyLines = [columns.slice(i), ...bodyLines];
+      columns = columns.slice(0, sepIdx);
+    }
+    if (columns.length < 2) return null;
+
+    const width = columns.length;
+    const pad = (cells: string[]): string[] => {
+      const row = cells.slice(0, width);
+      while (row.length < width) row.push("");
+      return row;
+    };
+
+    const rows: string[][] = [];
+    for (const lineCells of bodyLines) {
+      const cells = lineCells.filter((c) => !SEPARATOR_CELL.test(c));
+      if (cells.length === 0) continue;
+      if (cells.length <= width) {
+        rows.push(pad(cells));
+      } else {
+        // Multiple rows concatenated on one line: chunk by header width.
+        for (let i = 0; i < cells.length; i += width) {
+          rows.push(pad(cells.slice(i, i + width)));
+        }
+      }
+    }
+    if (rows.length === 0) return null;
+    return { columns, rows };
+  } catch {
+    return null;
+  }
+}
+
+/** Strip **bold** / __bold__ markers from a table cell. */
+export function stripCellBold(cell: string): string {
+  return cell.replace(/\*\*(.+?)\*\*/g, "$1").replace(/__(.+?)__/g, "$1");
+}
+
+/**
+ * Per-column numeric flags: true when every non-empty body cell in the
+ * column parses as a number (commas / percent signs allowed).
+ */
+export function numericColumns(table: ParsedTable): boolean[] {
+  return table.columns.map((_, j) => {
+    let hasValue = false;
+    for (const row of table.rows) {
+      const cell = stripCellBold(row[j] ?? "").trim();
+      if (!cell) continue;
+      if (!Number.isFinite(Number(cell.replace(/[,%\s]/g, "")))) return false;
+      hasValue = true;
+    }
+    return hasValue;
+  });
+}
+
 /** One bar of a simple horizontal bar chart. */
 export type BarDatum = { label: string; value: number };
 

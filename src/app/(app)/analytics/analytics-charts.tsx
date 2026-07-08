@@ -65,6 +65,7 @@ export function AnalyticsCharts({
   keywordData,
   scrapeVolume,
   insights,
+  labels,
 }: {
   severityData: Datum[];
   categoryData: Datum[];
@@ -72,9 +73,12 @@ export function AnalyticsCharts({
   keywordData: Datum[];
   scrapeVolume: { day: string; results: number }[];
   insights: Record<"severity" | "category" | "weekly" | "keywords" | "scrape", string>;
+  labels: { weekly: string; scrape: string };
 }) {
   const hasSeverity = severityData.some((d) => d.value > 0);
   const hasCategory = categoryData.some((d) => d.value > 0);
+  const hasWeekly = weeklyData.some((d) => d.risks > 0);
+  const hasScrape = scrapeVolume.some((d) => d.results > 0);
   const severitySlices = severityData.filter((d) => d.value > 0);
 
   return (
@@ -179,7 +183,8 @@ export function AnalyticsCharts({
       </ChartCard>
 
       {/* Risks over time - gradient area, full width */}
-      <ChartCard title="Risks logged - last 12 weeks" insight={insights.weekly} className="lg:col-span-2">
+      <ChartCard title={labels.weekly} insight={insights.weekly} className="lg:col-span-2">
+        {hasWeekly ? (
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={weeklyData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
             <defs>
@@ -213,6 +218,9 @@ export function AnalyticsCharts({
             />
           </AreaChart>
         </ResponsiveContainer>
+        ) : (
+          <NoData />
+        )}
       </ChartCard>
 
       {/* Top keywords - horizontal bar */}
@@ -254,7 +262,8 @@ export function AnalyticsCharts({
       </ChartCard>
 
       {/* Scrape volume line */}
-      <ChartCard title="Scrape volume - last 14 days" insight={insights.scrape}>
+      <ChartCard title={labels.scrape} insight={insights.scrape}>
+        {hasScrape ? (
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={scrapeVolume} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
             <CartesianGrid stroke={HAIRLINE} vertical={false} />
@@ -282,6 +291,9 @@ export function AnalyticsCharts({
             />
           </LineChart>
         </ResponsiveContainer>
+        ) : (
+          <NoData />
+        )}
       </ChartCard>
     </div>
   );
@@ -290,7 +302,7 @@ export function AnalyticsCharts({
 function NoData() {
   return (
     <div className="flex h-full items-center justify-center text-sm text-muted">
-      No data yet - charts populate as the pipeline runs.
+      No data in this scope - adjust the range or category filter, or wait for the pipeline.
     </div>
   );
 }

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
 import { ChevronLeft, ChevronRight, ScrollText } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { activityLog, users } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { parseRange, rangeStart, RANGE_PRESETS } from "@/lib/date-range";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ function compactJson(value: unknown): string {
 export default async function ActivityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actor?: string; action?: string; page?: string }>;
+  searchParams: Promise<{ actor?: string; action?: string; range?: string; page?: string }>;
 }) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
@@ -44,12 +45,15 @@ export default async function ActivityPage({
   const params = await searchParams;
   const actorFilter = params.actor?.trim() || undefined;
   const actionFilter = params.action?.trim() || undefined;
+  const range = parseRange(params.range, "all");
+  const rangeFrom = rangeStart(range);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const conditions = [];
   if (actorFilter && uuidRe.test(actorFilter)) conditions.push(eq(activityLog.actor, actorFilter));
   if (actionFilter) conditions.push(ilike(activityLog.action, `${actionFilter}%`));
+  if (rangeFrom) conditions.push(gte(activityLog.createdAt, rangeFrom));
   const where = conditions.length ? and(...conditions) : undefined;
 
   let rows: {
@@ -112,7 +116,17 @@ export default async function ActivityPage({
     const sp = new URLSearchParams();
     if (actorFilter) sp.set("actor", actorFilter);
     if (actionFilter) sp.set("action", actionFilter);
+    if (range !== "all") sp.set("range", range);
     if (p > 1) sp.set("page", String(p));
+    const s = sp.toString();
+    return s ? `/activity?${s}` : "/activity";
+  };
+
+  const rangeHref = (r: string) => {
+    const sp = new URLSearchParams();
+    if (actorFilter) sp.set("actor", actorFilter);
+    if (actionFilter) sp.set("action", actionFilter);
+    if (r !== "all") sp.set("range", r);
     const s = sp.toString();
     return s ? `/activity?${s}` : "/activity";
   };
@@ -167,13 +181,29 @@ export default async function ActivityPage({
             ))}
           </select>
         </div>
+        {range !== "all" && <input type="hidden" name="range" value={range} />}
         <button
           type="submit"
           className="rounded-brand border border-hairline bg-surface px-4 py-2 font-display text-sm font-bold text-ink transition-colors hover:border-cyber/50 hover:text-cyber"
         >
           Apply
         </button>
-        {(actorFilter || actionFilter) && (
+        <div className="flex items-center gap-1.5 py-0.5" role="group" aria-label="Date range">
+          {RANGE_PRESETS.map((r) => (
+            <Link
+              key={r}
+              href={rangeHref(r)}
+              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
+                range === r
+                  ? "border-cyber/60 bg-cyber/10 text-cyber"
+                  : "border-hairline text-muted hover:text-ink"
+              }`}
+            >
+              {r === "all" ? "All time" : r}
+            </Link>
+          ))}
+        </div>
+        {(actorFilter || actionFilter || range !== "all") && (
           <Link href="/activity" className="py-2 text-sm text-muted hover:text-cyber">
             Clear filters
           </Link>
@@ -190,10 +220,14 @@ export default async function ActivityPage({
         ) : rows.length === 0 ? (
           <EmptyState
             icon={<ScrollText />}
-            title={actorFilter || actionFilter ? "No activity matches your filters" : "No activity yet"}
+            title={
+              actorFilter || actionFilter || range !== "all"
+                ? "No activity matches your filters"
+                : "No activity yet"
+            }
             hint={
-              actorFilter || actionFilter
-                ? "Adjust the actor or action filter."
+              actorFilter || actionFilter || range !== "all"
+                ? "Adjust the actor, action or date range filter."
                 : "Actions taken across the workspace will be recorded here."
             }
           />

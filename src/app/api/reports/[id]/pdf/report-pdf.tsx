@@ -5,9 +5,13 @@ import type { MetricTable } from "@/lib/report-config";
 import {
   BRAND,
   CLASSIFICATION,
+  isMarkdownTableLine,
+  numericColumns,
+  parseMarkdownTable,
   severityColor,
   splitMetricTables,
   toBarData,
+  type ParsedTable,
 } from "@/lib/export-shared";
 
 /**
@@ -22,7 +26,8 @@ import {
 type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
   | { kind: "p"; text: string }
-  | { kind: "bullet"; text: string };
+  | { kind: "bullet"; text: string }
+  | { kind: "table"; table: ParsedTable };
 
 function stripInline(text: string): string {
   return text
@@ -37,6 +42,7 @@ function stripInline(text: string): string {
 export function parseMarkdownBlocks(markdown: string): Block[] {
   const blocks: Block[] = [];
   let paragraph: string[] = [];
+  let tableLines: string[] = [];
 
   const flush = () => {
     if (paragraph.length > 0) {
@@ -45,9 +51,33 @@ export function parseMarkdownBlocks(markdown: string): Block[] {
     }
   };
 
+  const flushTable = () => {
+    if (tableLines.length === 0) return;
+    const parsed = parseMarkdownTable(tableLines);
+    if (parsed) {
+      blocks.push({
+        kind: "table",
+        table: {
+          columns: parsed.columns.map(stripInline),
+          rows: parsed.rows.map((row) => row.map(stripInline)),
+        },
+      });
+    } else {
+      // Fall back to plain paragraphs when the candidate is not a table.
+      for (const l of tableLines) blocks.push({ kind: "p", text: stripInline(l) });
+    }
+    tableLines = [];
+  };
+
   for (const raw of markdown.split("\n")) {
     const line = raw.trimEnd();
     const trimmed = line.trim();
+    if (isMarkdownTableLine(trimmed)) {
+      flush();
+      tableLines.push(trimmed);
+      continue;
+    }
+    flushTable();
     if (!trimmed || /^(-{3,}|\*{3,})$/.test(trimmed)) {
       flush();
       continue;
@@ -71,6 +101,7 @@ export function parseMarkdownBlocks(markdown: string): Block[] {
     paragraph.push(trimmed);
   }
   flush();
+  flushTable();
   return blocks;
 }
 
@@ -279,6 +310,35 @@ function MetricTableView({ table }: { table: MetricTable }) {
   );
 }
 
+/** Bordered table for markdown tables in the report body, matching the
+ *  metric-table treatment (Deep Navy header, hairline rows). */
+function MarkdownTableView({ table }: { table: ParsedTable }) {
+  const numeric = numericColumns(table);
+  return (
+    <View style={styles.table}>
+      <View style={styles.tableHeaderRow}>
+        {table.columns.map((col, i) => (
+          <Text
+            key={i}
+            style={[styles.tableHeaderCell, numeric[i] ? { textAlign: "right" } : {}]}
+          >
+            {col}
+          </Text>
+        ))}
+      </View>
+      {table.rows.map((row, i) => (
+        <View key={i} style={styles.tableRow}>
+          {table.columns.map((_, j) => (
+            <Text key={j} style={[styles.tableCell, numeric[j] ? { textAlign: "right" } : {}]}>
+              {row[j] ?? ""}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function ReportPdf({
   title,
   reportType,
@@ -372,6 +432,8 @@ export function ReportPdf({
             if (block.kind === "h1") return <Text key={i} style={styles.h1}>{block.text}</Text>;
             if (block.kind === "h2") return <Text key={i} style={styles.h2}>{block.text}</Text>;
             if (block.kind === "h3") return <Text key={i} style={styles.h3}>{block.text}</Text>;
+            if (block.kind === "table")
+              return <MarkdownTableView key={i} table={block.table} />;
             if (block.kind === "bullet")
               return (
                 <View key={i} style={styles.bulletRow}>

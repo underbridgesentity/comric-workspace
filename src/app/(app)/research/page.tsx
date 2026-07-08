@@ -1,18 +1,38 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, or, type SQL } from "drizzle-orm";
 import { Settings2 } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { researchEntries, scrapeResults, users } from "@/lib/schema";
+import { researchEntries, researchSourceEnum, scrapeResults, users } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui";
+import { parseRange, rangeStart } from "@/lib/date-range";
 import { ResearchClient } from "./research-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function ResearchPage() {
+export default async function ResearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
+  const sp = await searchParams;
+  const get = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
+
+  const q = get("q").trim();
+  const sourceType = researchSourceEnum.enumValues.find((s) => s === get("sourceType"));
+  const range = parseRange(get("range") || undefined, "all");
+  const start = rangeStart(range);
+
+  const where: SQL[] = [];
+  if (q)
+    where.push(
+      or(ilike(researchEntries.title, `%${q}%`), ilike(researchEntries.content, `%${q}%`))!,
+    );
+  if (sourceType) where.push(eq(researchEntries.sourceType, sourceType));
+  if (start) where.push(gte(researchEntries.createdAt, start));
 
   const [entries, unprocessed] = await Promise.all([
     db
@@ -29,6 +49,7 @@ export default async function ResearchPage() {
       })
       .from(researchEntries)
       .leftJoin(users, eq(researchEntries.createdBy, users.id))
+      .where(where.length ? and(...where) : undefined)
       .orderBy(desc(researchEntries.createdAt))
       .limit(100),
     db
@@ -36,6 +57,8 @@ export default async function ResearchPage() {
       .from(scrapeResults)
       .where(eq(scrapeResults.processed, false)),
   ]);
+
+  const filtersActive = !!q || !!sourceType || range !== "all";
 
   return (
     <div className="animate-rise">
@@ -55,6 +78,7 @@ export default async function ResearchPage() {
         canCreate={can(role, "create", "research")}
         canAnalyse={can(role, "create", "ai_report")}
         unprocessedCount={unprocessed.length}
+        filtersActive={filtersActive}
         entries={entries.map((e) => {
           const raw = (e.rawData ?? null) as { documentId?: string } | null;
           return {

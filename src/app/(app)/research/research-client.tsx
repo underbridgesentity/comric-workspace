@@ -15,6 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Card, EmptyState, GhostButton, PrimaryButton } from "@/components/ui";
+import { FilterBar } from "@/components/filter-bar";
 import { Markdown } from "@/components/markdown";
 
 type Entry = {
@@ -54,11 +55,13 @@ export function ResearchClient({
   canCreate,
   canAnalyse,
   unprocessedCount,
+  filtersActive,
   entries,
 }: {
   canCreate: boolean;
   canAnalyse: boolean;
   unprocessedCount: number;
+  filtersActive: boolean;
   entries: Entry[];
 }) {
   const router = useRouter();
@@ -265,14 +268,48 @@ export function ResearchClient({
       </div>
 
       {/* Entries list */}
+      {tab === "entries" && (
+        <FilterBar
+          searchParam="q"
+          searchPlaceholder="Search entries…"
+          selects={[
+            {
+              name: "sourceType",
+              label: "Source type",
+              options: [
+                { value: "web_scrape", label: "Web scrape" },
+                { value: "csv_import", label: "CSV import" },
+                { value: "manual", label: "Manual" },
+                { value: "api", label: "API feed" },
+              ],
+            },
+          ]}
+          rangeParam="range"
+          defaultRange="all"
+          className="mb-0"
+        />
+      )}
       {tab === "entries" &&
         (entries.length === 0 ? (
           <Card>
-            <EmptyState
-              icon={<BookOpen />}
-              title="No research entries yet"
-              hint="Add entries manually, import a CSV, or let the scrape pipeline feed the engine."
-            />
+            {filtersActive ? (
+              <EmptyState
+                icon={<BookOpen />}
+                title="No entries match your filters"
+                hint="Try broadening the search, source type or date range."
+                action={
+                  <GhostButton type="button" onClick={() => router.replace("/research")}>
+                    Clear filters
+                  </GhostButton>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={<BookOpen />}
+                title="No research entries yet"
+                hint="Add entries manually, import a CSV, or let the scrape pipeline feed the engine."
+              />
+            )}
           </Card>
         ) : (
           <div className="space-y-3">

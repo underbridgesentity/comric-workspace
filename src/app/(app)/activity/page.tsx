@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { ChevronLeft, ChevronRight, ScrollText } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { activityLog, users } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
-import { parseRange, rangeStart, RANGE_PRESETS } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
+import { FilterBar } from "@/components/filter-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,14 @@ function compactJson(value: unknown): string {
 export default async function ActivityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actor?: string; action?: string; range?: string; page?: string }>;
+  searchParams: Promise<{
+    actor?: string;
+    action?: string;
+    range?: string;
+    from?: string;
+    to?: string;
+    page?: string;
+  }>;
 }) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
@@ -45,15 +53,17 @@ export default async function ActivityPage({
   const params = await searchParams;
   const actorFilter = params.actor?.trim() || undefined;
   const actionFilter = params.action?.trim() || undefined;
-  const range = parseRange(params.range, "all");
-  const rangeFrom = rangeStart(range);
+  const window = parseWindow({ range: params.range, from: params.from, to: params.to }, "all");
+  const isCustom = params.range === "custom";
+  const rangeActive = window.key !== "all" || isCustom;
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const conditions = [];
   if (actorFilter && uuidRe.test(actorFilter)) conditions.push(eq(activityLog.actor, actorFilter));
   if (actionFilter) conditions.push(ilike(activityLog.action, `${actionFilter}%`));
-  if (rangeFrom) conditions.push(gte(activityLog.createdAt, rangeFrom));
+  if (window.start) conditions.push(gte(activityLog.createdAt, window.start));
+  if (window.end) conditions.push(lte(activityLog.createdAt, window.end));
   const where = conditions.length ? and(...conditions) : undefined;
 
   let rows: {
@@ -116,17 +126,14 @@ export default async function ActivityPage({
     const sp = new URLSearchParams();
     if (actorFilter) sp.set("actor", actorFilter);
     if (actionFilter) sp.set("action", actionFilter);
-    if (range !== "all") sp.set("range", range);
+    if (isCustom) {
+      sp.set("range", "custom");
+      if (params.from) sp.set("from", params.from);
+      if (params.to) sp.set("to", params.to);
+    } else if (window.key !== "all") {
+      sp.set("range", window.key);
+    }
     if (p > 1) sp.set("page", String(p));
-    const s = sp.toString();
-    return s ? `/activity?${s}` : "/activity";
-  };
-
-  const rangeHref = (r: string) => {
-    const sp = new URLSearchParams();
-    if (actorFilter) sp.set("actor", actorFilter);
-    if (actionFilter) sp.set("action", actionFilter);
-    if (r !== "all") sp.set("range", r);
     const s = sp.toString();
     return s ? `/activity?${s}` : "/activity";
   };
@@ -181,29 +188,23 @@ export default async function ActivityPage({
             ))}
           </select>
         </div>
-        {range !== "all" && <input type="hidden" name="range" value={range} />}
+        {isCustom ? (
+          <>
+            <input type="hidden" name="range" value="custom" />
+            {params.from && <input type="hidden" name="from" value={params.from} />}
+            {params.to && <input type="hidden" name="to" value={params.to} />}
+          </>
+        ) : (
+          window.key !== "all" && <input type="hidden" name="range" value={window.key} />
+        )}
         <button
           type="submit"
           className="rounded-brand border border-hairline bg-surface px-4 py-2 font-display text-sm font-bold text-ink transition-colors hover:border-cyber/50 hover:text-cyber"
         >
           Apply
         </button>
-        <div className="flex items-center gap-1.5 py-0.5" role="group" aria-label="Date range">
-          {RANGE_PRESETS.map((r) => (
-            <Link
-              key={r}
-              href={rangeHref(r)}
-              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
-                range === r
-                  ? "border-cyber/60 bg-cyber/10 text-cyber"
-                  : "border-hairline text-muted hover:text-ink"
-              }`}
-            >
-              {r === "all" ? "All time" : r}
-            </Link>
-          ))}
-        </div>
-        {(actorFilter || actionFilter || range !== "all") && (
+        <FilterBar rangeParam="range" defaultRange="all" showClear={false} className="mb-0 py-0.5" />
+        {(actorFilter || actionFilter || rangeActive) && (
           <Link href="/activity" className="py-2 text-sm text-muted hover:text-cyber">
             Clear filters
           </Link>
@@ -221,12 +222,12 @@ export default async function ActivityPage({
           <EmptyState
             icon={<ScrollText />}
             title={
-              actorFilter || actionFilter || range !== "all"
+              actorFilter || actionFilter || rangeActive
                 ? "No activity matches your filters"
                 : "No activity yet"
             }
             hint={
-              actorFilter || actionFilter || range !== "all"
+              actorFilter || actionFilter || rangeActive
                 ? "Adjust the actor, action or date range filter."
                 : "Actions taken across the workspace will be recorded here."
             }

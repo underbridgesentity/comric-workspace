@@ -1,9 +1,9 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
 import { GhostButton } from "@/components/ui";
-import type { RangePreset } from "@/lib/date-range";
 
 const CATEGORY_OPTIONS = [
   { value: "infrastructure", label: "Infrastructure" },
@@ -14,16 +14,15 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-export function AnalyticsControls({
-  range,
-  category,
-}: {
-  range: RangePreset;
-  category: string;
-}) {
-  const exportHref = `/api/analytics/export?range=${range}${
-    category ? `&category=${category}` : ""
-  }`;
+export function AnalyticsControls() {
+  const params = useSearchParams();
+  const exportParams = new URLSearchParams();
+  exportParams.set("range", params.get("range") || "90d");
+  for (const key of ["from", "to", "category"]) {
+    const value = params.get(key);
+    if (value) exportParams.set(key, value);
+  }
+  const exportHref = `/api/analytics/export?${exportParams.toString()}`;
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <FilterBar

@@ -1,8 +1,8 @@
-import { and, gte, eq, type SQL } from "drizzle-orm";
+import { and, gte, lte, eq, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { risks, scrapeResults, riskCategoryEnum } from "@/lib/schema";
 import type { RiskCategory, Severity } from "@/lib/schema";
-import { rangeStart, type RangePreset } from "@/lib/date-range";
+import type { DateWindow } from "@/lib/date-range";
 
 export const CATEGORY_LABELS: Record<RiskCategory, string> = {
   infrastructure: "Infrastructure",
@@ -29,38 +29,51 @@ export type AnalyticsData = {
   labels: { weekly: string; scrape: string };
 };
 
-/** Time-series bucketing per preset: daily for short windows, weekly beyond. */
-function buckets(range: RangePreset): { unit: "day" | "week"; count: number } {
-  if (range === "7d") return { unit: "day", count: 7 };
-  if (range === "30d") return { unit: "day", count: 30 };
-  if (range === "90d") return { unit: "week", count: 13 };
-  // "all": aggregates are unbounded, but time charts still need a window.
-  return { unit: "week", count: 12 };
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Time-series bucketing for a resolved window: daily when the window spans
+ * 35 days or fewer, weekly beyond. Unbounded windows fall back to 12 weeks
+ * of history for the time charts.
+ */
+function buckets(window: DateWindow, now: number): { unit: "day" | "week"; count: number } {
+  const seriesEnd = window.end ? window.end.getTime() : now;
+  if (!window.start) return { unit: "week", count: 12 };
+  const days = Math.max(1, Math.ceil((seriesEnd - window.start.getTime()) / DAY_MS));
+  return days <= 35 ? { unit: "day", count: days } : { unit: "week", count: Math.ceil(days / 7) };
 }
 
-function seriesLabel(unit: "day" | "week", count: number): string {
+function seriesLabel(window: DateWindow, unit: "day" | "week", count: number): string {
+  if (window.key === "custom") return window.label;
   return unit === "day" ? `last ${count} days` : `last ${count} weeks`;
 }
 
 /**
  * Every dataset behind the analytics page and its Excel export, computed for
- * a date-range preset plus an optional risk category. The category applies
- * to risk-derived charts only; the range applies everywhere ("all" leaves
- * aggregates unbounded and falls back to a 12-week window for time series).
+ * a resolved date window plus an optional risk category. The category applies
+ * to risk-derived charts only; the window applies everywhere (an unbounded
+ * window leaves aggregates unbounded and falls back to a 12-week window for
+ * time series).
  */
 export async function getAnalyticsData(
-  range: RangePreset,
+  window: DateWindow,
   category: RiskCategory | null,
 ): Promise<AnalyticsData> {
   const now = Date.now();
-  const start = rangeStart(range, now);
-  const { unit, count } = buckets(range);
-  const unitMs = (unit === "day" ? 1 : 7) * 24 * 60 * 60 * 1000;
-  const seriesStart = new Date(now - count * unitMs);
+  const { start, end } = window;
+  const { unit, count } = buckets(window, now);
+  const unitMs = (unit === "day" ? 1 : 7) * DAY_MS;
+  const seriesEnd = end ? end.getTime() : now;
+  const seriesStart = new Date(seriesEnd - count * unitMs);
 
   const riskWhere: SQL[] = [];
   if (start) riskWhere.push(gte(risks.createdAt, start));
+  if (end) riskWhere.push(lte(risks.createdAt, end));
   if (category) riskWhere.push(eq(risks.category, category));
+
+  const scrapeWhere: SQL[] = [];
+  if (start) scrapeWhere.push(gte(scrapeResults.scrapedAt, start));
+  if (end) scrapeWhere.push(lte(scrapeResults.scrapedAt, end));
 
   const [scopedRisks, scopedScrapes] = await Promise.all([
     db
@@ -73,7 +86,7 @@ export async function getAnalyticsData(
         matchedKeywords: scrapeResults.matchedKeywords,
       })
       .from(scrapeResults)
-      .where(start ? gte(scrapeResults.scrapedAt, start) : undefined),
+      .where(scrapeWhere.length ? and(...scrapeWhere) : undefined),
   ]);
 
   // Severity distribution over risks created in scope.
@@ -92,8 +105,8 @@ export async function getAnalyticsData(
   // Risks logged over time.
   const weeklyData: { week: string; risks: number }[] = [];
   for (let i = count - 1; i >= 0; i--) {
-    const bStart = new Date(now - (i + 1) * unitMs);
-    const bEnd = new Date(now - i * unitMs);
+    const bStart = new Date(seriesEnd - (i + 1) * unitMs);
+    const bEnd = new Date(seriesEnd - i * unitMs);
     weeklyData.push({
       week: bEnd.toLocaleDateString("en-ZA", { day: "numeric", month: "short" }),
       risks: scopedRisks.filter((r) => r.createdAt >= bStart && r.createdAt < bEnd).length,
@@ -113,8 +126,8 @@ export async function getAnalyticsData(
   const scrapeVolume: { day: string; results: number }[] = [];
   const scrapesInWindow = scopedScrapes.filter((s) => s.scrapedAt >= seriesStart);
   for (let i = count - 1; i >= 0; i--) {
-    const bStart = new Date(now - (i + 1) * unitMs);
-    const bEnd = new Date(now - i * unitMs);
+    const bStart = new Date(seriesEnd - (i + 1) * unitMs);
+    const bEnd = new Date(seriesEnd - i * unitMs);
     scrapeVolume.push({
       day: bEnd.toLocaleDateString("en-ZA", { day: "numeric", month: "short" }),
       results: scrapesInWindow.filter((s) => s.scrapedAt >= bStart && s.scrapedAt < bEnd).length,
@@ -146,7 +159,7 @@ export async function getAnalyticsData(
       keywordData.length === 0
         ? "No keyword matches captured in this scope."
         : `"${keywordData[0].name}" is the most-triggered keyword (${keywordData[0].value} matches).`,
-    scrape: `${scrapesInWindow.length} articles captured by the scrape pipeline in the ${seriesLabel(unit, count)}.`,
+    scrape: `${scrapesInWindow.length} articles captured by the scrape pipeline in ${window.key === "custom" ? `the window ${window.label}` : `the ${seriesLabel(window, unit, count)}`}.`,
   };
 
   return {
@@ -157,8 +170,8 @@ export async function getAnalyticsData(
     scrapeVolume,
     insights,
     labels: {
-      weekly: `Risks logged - ${seriesLabel(unit, count)}`,
-      scrape: `Scrape volume - ${seriesLabel(unit, count)}`,
+      weekly: `Risks logged - ${seriesLabel(window, unit, count)}`,
+      scrape: `Scrape volume - ${seriesLabel(window, unit, count)}`,
     },
   };
 }

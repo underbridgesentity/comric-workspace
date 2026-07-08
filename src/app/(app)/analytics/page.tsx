@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/ui";
-import { parseRange } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
 import { getAnalyticsData, parseCategory } from "@/lib/analytics-data";
 import { AnalyticsCharts } from "./analytics-charts";
 import { AnalyticsControls } from "./analytics-controls";
@@ -13,10 +13,13 @@ export default async function AnalyticsPage({
 }) {
   const sp = await searchParams;
   const get = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : undefined);
-  const range = parseRange(get("range"), "90d");
+  const window = parseWindow(
+    { range: get("range"), from: get("from"), to: get("to") },
+    "90d",
+  );
   const category = parseCategory(get("category"));
 
-  const data = await getAnalyticsData(range, category);
+  const data = await getAnalyticsData(window, category);
 
   return (
     <div className="animate-rise">
@@ -24,7 +27,7 @@ export default async function AnalyticsPage({
         title="Live Analytics"
         subtitle="Real-time snapshot of the COMRiC risk and intelligence pipeline."
       />
-      <AnalyticsControls range={range} category={category ?? ""} />
+      <AnalyticsControls />
       <AnalyticsCharts
         severityData={data.severityData}
         categoryData={data.categoryData}

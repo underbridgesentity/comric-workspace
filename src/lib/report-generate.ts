@@ -1,8 +1,8 @@
 import { db } from "./db";
 import { aiReports } from "./schema";
 import { anthropic, AI_MODEL, COMRIC_CONTEXT, textFromMessage } from "./anthropic";
+import { windowFromBuilder } from "./date-range";
 import {
-  RANGE_LABELS,
   type BuilderPayload,
   type MetricTable,
   type ReportParameters,
@@ -59,7 +59,7 @@ export async function buildReportPrompt(payload: BuilderPayload): Promise<Report
 
   const typeTitle = TYPE_TITLES[payload.reportType] ?? "Report";
   const scopeBits = [
-    RANGE_LABELS[payload.range],
+    windowFromBuilder(payload).label,
     payload.category ? `category: ${payload.category}` : null,
     payload.severityFloor ? `severity ${payload.severityFloor} and above` : null,
   ].filter(Boolean);

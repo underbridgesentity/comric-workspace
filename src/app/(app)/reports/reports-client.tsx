@@ -66,7 +66,7 @@ const TYPES: { id: ReportType; label: string; description: string; icon: React.R
 
 const RANGES = (Object.keys(RANGE_LABELS) as Range[]).map((id) => ({
   id,
-  label: RANGE_LABELS[id],
+  label: id === "custom" ? "Custom" : RANGE_LABELS[id],
 }));
 
 const TYPE_TAG: Record<string, string> = {
@@ -134,6 +134,8 @@ export function ReportsClient({
   const [metrics, setMetrics] = useState<MetricKey[]>(DEFAULT_METRICS);
   const [sources, setSources] = useState<SourceKey[]>(DEFAULT_SOURCES);
   const [range, setRange] = useState<Range>("30d");
+  const [rangeFrom, setRangeFrom] = useState("");
+  const [rangeTo, setRangeTo] = useState("");
   const [category, setCategory] = useState<string>("");
   const [severityFloor, setSeverityFloor] = useState<string>("");
   const [instructions, setInstructions] = useState("");
@@ -167,6 +169,8 @@ export function ReportsClient({
       metrics,
       sources,
       range,
+      rangeFrom: range === "custom" && rangeFrom ? rangeFrom : undefined,
+      rangeTo: range === "custom" && rangeTo ? rangeTo : undefined,
       category: (category || undefined) as BuilderPayload["category"],
       severityFloor: (severityFloor || undefined) as BuilderPayload["severityFloor"],
       instructions: instructions.trim() || undefined,
@@ -179,6 +183,8 @@ export function ReportsClient({
     setMetrics(p.metrics);
     setSources(p.sources);
     setRange(p.range);
+    setRangeFrom(p.rangeFrom ?? "");
+    setRangeTo(p.rangeTo ?? "");
     setCategory(p.category ?? "");
     setSeverityFloor(p.severityFloor ?? "");
     setInstructions(p.instructions ?? "");
@@ -422,6 +428,27 @@ export function ReportsClient({
                   </Chip>
                 ))}
               </div>
+              {range === "custom" && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    aria-label="From date"
+                    value={rangeFrom}
+                    max={rangeTo || undefined}
+                    onChange={(e) => setRangeFrom(e.target.value)}
+                    className="rounded-brand border border-hairline bg-surface px-2 py-1 text-sm text-ink focus:border-cyber/50 focus:outline-none"
+                  />
+                  <span className="text-xs text-muted">to</span>
+                  <input
+                    type="date"
+                    aria-label="To date"
+                    value={rangeTo}
+                    min={rangeFrom || undefined}
+                    onChange={(e) => setRangeTo(e.target.value)}
+                    className="rounded-brand border border-hairline bg-surface px-2 py-1 text-sm text-ink focus:border-cyber/50 focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
             <div>
               <SectionLabel>Category filter (optional)</SectionLabel>

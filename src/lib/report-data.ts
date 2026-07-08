@@ -1,5 +1,6 @@
-import { and, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db } from "./db";
+import { windowFromBuilder, type DateWindow } from "./date-range";
 import {
   documentAnalyses,
   documents,
@@ -10,7 +11,6 @@ import {
 } from "./schema";
 import {
   METRIC_DEFS,
-  RANGE_DAYS,
   SOURCE_DEFS,
   type BuilderPayload,
   type MetricKey,
@@ -33,14 +33,21 @@ function severitiesAtOrAbove(floor: BuilderPayload["severityFloor"]) {
   return SEVERITY_ORDER.slice(0, idx + 1);
 }
 
-export function rangeSince(range: BuilderPayload["range"]): Date | null {
-  const days = RANGE_DAYS[range];
-  return days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+/** Resolve the builder payload (preset or custom bounds) to a DateWindow. */
+export function payloadWindow(payload: BuilderPayload): DateWindow {
+  return windowFromBuilder(payload);
 }
 
-function riskConditions(payload: BuilderPayload, since: Date | null): SQL[] {
+/** gte/lte conditions for a timestamp column over a resolved window. */
+function timeConds(column: AnyColumn, w: DateWindow): SQL[] {
   const conds: SQL[] = [];
-  if (since) conds.push(gte(risks.createdAt, since));
+  if (w.start) conds.push(gte(column, w.start));
+  if (w.end) conds.push(lte(column, w.end));
+  return conds;
+}
+
+function riskConditions(payload: BuilderPayload, w: DateWindow | null): SQL[] {
+  const conds: SQL[] = w ? timeConds(risks.createdAt, w) : [];
   if (payload.category) conds.push(eq(risks.category, payload.category));
   const sevs = severitiesAtOrAbove(payload.severityFloor);
   if (sevs) conds.push(inArray(risks.severity, [...sevs]));
@@ -54,24 +61,26 @@ function whereAll(conds: SQL[]): SQL | undefined {
 const count = sql<number>`count(*)::int`;
 
 async function severityDistribution(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const current = await db
     .select({ severity: risks.severity, n: count })
     .from(risks)
-    .where(whereAll(riskConditions(payload, since)))
+    .where(whereAll(riskConditions(payload, w)))
     .groupBy(risks.severity);
 
   let previous: { severity: string; n: number }[] = [];
-  const days = RANGE_DAYS[payload.range];
-  if (since && days) {
-    const prevStart = new Date(since.getTime() - days * 24 * 60 * 60 * 1000);
+  const hasPrev = !!w.start;
+  if (w.start) {
+    const durationMs = (w.end ? w.end.getTime() : Date.now()) - w.start.getTime();
+    const prevStart = new Date(w.start.getTime() - Math.max(durationMs, 1));
     previous = await db
       .select({ severity: risks.severity, n: count })
       .from(risks)
       .where(
         whereAll([
-          ...riskConditions(payload, prevStart),
-          lt(risks.createdAt, since),
+          ...riskConditions(payload, null),
+          gte(risks.createdAt, prevStart),
+          lt(risks.createdAt, w.start),
         ]),
       )
       .groupBy(risks.severity);
@@ -82,8 +91,8 @@ async function severityDistribution(payload: BuilderPayload): Promise<MetricTabl
   const rows = SEVERITY_ORDER.map((s) => {
     const c = cur.get(s) ?? 0;
     const p = prev.get(s) ?? 0;
-    const delta = since ? (c - p > 0 ? `+${c - p}` : `${c - p}`) : "n/a";
-    return [s, c, since ? p : "n/a", delta] as (string | number)[];
+    const delta = hasPrev ? (c - p > 0 ? `+${c - p}` : `${c - p}`) : "n/a";
+    return [s, c, hasPrev ? p : "n/a", delta] as (string | number)[];
   });
   return {
     key: "severity_distribution",
@@ -94,11 +103,11 @@ async function severityDistribution(payload: BuilderPayload): Promise<MetricTabl
 }
 
 async function categoryBreakdown(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const grouped = await db
     .select({ category: risks.category, n: count })
     .from(risks)
-    .where(whereAll(riskConditions(payload, since)))
+    .where(whereAll(riskConditions(payload, w)))
     .groupBy(risks.category)
     .orderBy(desc(count));
   const total = grouped.reduce((acc, g) => acc + g.n, 0);
@@ -115,13 +124,13 @@ async function categoryBreakdown(payload: BuilderPayload): Promise<MetricTable> 
 }
 
 async function newVsResolved(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const baseConds = riskConditions(payload, null);
   const [[created], [resolved]] = await Promise.all([
     db
       .select({ n: count })
       .from(risks)
-      .where(whereAll([...baseConds, ...(since ? [gte(risks.createdAt, since)] : [])])),
+      .where(whereAll([...baseConds, ...timeConds(risks.createdAt, w)])),
     db
       .select({ n: count })
       .from(risks)
@@ -129,7 +138,7 @@ async function newVsResolved(payload: BuilderPayload): Promise<MetricTable> {
         whereAll([
           ...baseConds,
           inArray(risks.status, ["resolved", "closed"]),
-          ...(since ? [gte(risks.updatedAt, since)] : []),
+          ...timeConds(risks.updatedAt, w),
         ]),
       ),
   ]);
@@ -148,9 +157,8 @@ async function newVsResolved(payload: BuilderPayload): Promise<MetricTable> {
 }
 
 async function incidentLocations(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
-  const conds: SQL[] = [];
-  if (since) conds.push(gte(sectorIntelligence.createdAt, since));
+  const w = payloadWindow(payload);
+  const conds = timeConds(sectorIntelligence.createdAt, w);
   const grouped = await db
     .select({
       location: sql<string>`coalesce(${sectorIntelligence.location}, 'Unspecified')`,
@@ -170,11 +178,11 @@ async function incidentLocations(payload: BuilderPayload): Promise<MetricTable> 
 }
 
 async function keywordTrends(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select({ matched: scrapeResults.matchedKeywords })
     .from(scrapeResults)
-    .where(since ? gte(scrapeResults.scrapedAt, since) : undefined)
+    .where(whereAll(timeConds(scrapeResults.scrapedAt, w)))
     .orderBy(desc(scrapeResults.scrapedAt))
     .limit(2000);
   const tally = new Map<string, number>();
@@ -194,7 +202,7 @@ async function keywordTrends(payload: BuilderPayload): Promise<MetricTable> {
 }
 
 async function scrapeVolume(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const [stats] = await db
     .select({
       total: count,
@@ -203,7 +211,7 @@ async function scrapeVolume(payload: BuilderPayload): Promise<MetricTable> {
       avgRelevance: sql<number | null>`round(avg(${scrapeResults.relevanceScore})::numeric, 2)::float`,
     })
     .from(scrapeResults)
-    .where(since ? gte(scrapeResults.scrapedAt, since) : undefined);
+    .where(whereAll(timeConds(scrapeResults.scrapedAt, w)));
   return {
     key: "scrape_volume",
     title: METRIC_DEFS.scrape_volume,
@@ -218,11 +226,11 @@ async function scrapeVolume(payload: BuilderPayload): Promise<MetricTable> {
 }
 
 async function topSources(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select({ url: scrapeResults.sourceUrl })
     .from(scrapeResults)
-    .where(since ? gte(scrapeResults.scrapedAt, since) : undefined)
+    .where(whereAll(timeConds(scrapeResults.scrapedAt, w)))
     .orderBy(desc(scrapeResults.scrapedAt))
     .limit(2000);
   const tally = new Map<string, number>();
@@ -245,11 +253,11 @@ async function topSources(payload: BuilderPayload): Promise<MetricTable> {
 }
 
 async function responseStatus(payload: BuilderPayload): Promise<MetricTable> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const grouped = await db
     .select({ status: risks.status, n: count })
     .from(risks)
-    .where(whereAll(riskConditions(payload, since)))
+    .where(whereAll(riskConditions(payload, w)))
     .groupBy(risks.status)
     .orderBy(desc(count));
   return {
@@ -279,11 +287,11 @@ export async function assembleMetricTables(payload: BuilderPayload): Promise<Met
 export type SourceBlock = { key: SourceKey; title: string; body: string };
 
 async function riskRegisterBlock(payload: BuilderPayload): Promise<SourceBlock> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select()
     .from(risks)
-    .where(whereAll(riskConditions(payload, since)))
+    .where(whereAll(riskConditions(payload, w)))
     .orderBy(desc(risks.createdAt))
     .limit(25);
   return {
@@ -300,11 +308,11 @@ async function riskRegisterBlock(payload: BuilderPayload): Promise<SourceBlock> 
 }
 
 async function sectorIntelBlock(payload: BuilderPayload): Promise<SourceBlock> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select()
     .from(sectorIntelligence)
-    .where(since ? gte(sectorIntelligence.createdAt, since) : undefined)
+    .where(whereAll(timeConds(sectorIntelligence.createdAt, w)))
     .orderBy(desc(sectorIntelligence.createdAt))
     .limit(25);
   return {
@@ -321,7 +329,7 @@ async function sectorIntelBlock(payload: BuilderPayload): Promise<SourceBlock> {
 }
 
 async function scrapedNewsBlock(payload: BuilderPayload): Promise<SourceBlock> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select({
       title: scrapeResults.title,
@@ -330,7 +338,7 @@ async function scrapedNewsBlock(payload: BuilderPayload): Promise<SourceBlock> {
       relevance: scrapeResults.relevanceScore,
     })
     .from(scrapeResults)
-    .where(since ? gte(scrapeResults.scrapedAt, since) : undefined)
+    .where(whereAll(timeConds(scrapeResults.scrapedAt, w)))
     .orderBy(desc(scrapeResults.relevanceScore), desc(scrapeResults.scrapedAt))
     .limit(20);
   return {
@@ -347,11 +355,11 @@ async function scrapedNewsBlock(payload: BuilderPayload): Promise<SourceBlock> {
 }
 
 async function researchBlock(payload: BuilderPayload): Promise<SourceBlock> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select()
     .from(researchEntries)
-    .where(since ? gte(researchEntries.createdAt, since) : undefined)
+    .where(whereAll(timeConds(researchEntries.createdAt, w)))
     .orderBy(desc(researchEntries.createdAt))
     .limit(25);
   return {
@@ -365,7 +373,7 @@ async function researchBlock(payload: BuilderPayload): Promise<SourceBlock> {
 }
 
 async function documentAnalysesBlock(payload: BuilderPayload): Promise<SourceBlock> {
-  const since = rangeSince(payload.range);
+  const w = payloadWindow(payload);
   const rows = await db
     .select({
       documentName: documents.name,
@@ -375,7 +383,7 @@ async function documentAnalysesBlock(payload: BuilderPayload): Promise<SourceBlo
     })
     .from(documentAnalyses)
     .innerJoin(documents, eq(documentAnalyses.documentId, documents.id))
-    .where(since ? gte(documentAnalyses.createdAt, since) : undefined)
+    .where(whereAll(timeConds(documentAnalyses.createdAt, w)))
     .orderBy(desc(documentAnalyses.createdAt))
     .limit(15);
   return {

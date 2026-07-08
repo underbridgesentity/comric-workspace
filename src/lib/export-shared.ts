@@ -1,4 +1,5 @@
 import { COMRIC_LOGO_BLACK_DATAURL } from "@/lib/brand-assets";
+import { windowFromBuilder } from "@/lib/date-range";
 import { RANGE_LABELS, type BuilderPayload, type MetricTable } from "@/lib/report-config";
 
 /**
@@ -39,10 +40,18 @@ export function formatReportDate(date: Date): string {
   });
 }
 
-/** Human date-range label from a builder snapshot, if available. */
+/**
+ * Human date-range label from a builder snapshot, if available. Custom ranges
+ * render their resolved window, e.g. "12 Jun 2026 - 30 Jun 2026".
+ */
 export function rangeLabel(builder: Partial<BuilderPayload> | undefined): string | null {
   const range = builder?.range;
-  return range && range in RANGE_LABELS ? RANGE_LABELS[range as BuilderPayload["range"]] : null;
+  if (!range || !(range in RANGE_LABELS)) return null;
+  return windowFromBuilder({
+    range,
+    rangeFrom: builder?.rangeFrom,
+    rangeTo: builder?.rangeTo,
+  }).label;
 }
 
 /** A GitHub-style markdown table parsed from AI report content. */

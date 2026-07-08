@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, asc, desc, eq, gte, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 import { ExternalLink, Radar, Rss } from "lucide-react";
 import { db } from "@/lib/db";
 import { risks, scrapeResults, sectorIntelligence } from "@/lib/schema";
@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { can } from "@/lib/permissions";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
-import { parseRange, rangeStart } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
 import { AddIntelligenceButton, LinkRiskSelect, PromoteButton } from "./intelligence-controls";
 
 export default async function IntelligencePage({
@@ -24,8 +24,10 @@ export default async function IntelligencePage({
 
   const q = get("q").trim();
   const incidentType = get("incidentType");
-  const range = parseRange(get("range") || undefined, "all");
-  const start = rangeStart(range);
+  const window = parseWindow(
+    { range: get("range") || undefined, from: get("from") || undefined, to: get("to") || undefined },
+    "all",
+  );
 
   const where: SQL[] = [];
   if (q)
@@ -36,14 +38,10 @@ export default async function IntelligencePage({
       )!,
     );
   if (incidentType) where.push(eq(sectorIntelligence.incidentType, incidentType));
-  if (start)
-    where.push(
-      gte(
-        sql`coalesce(${sectorIntelligence.occurredAt}, ${sectorIntelligence.createdAt})`,
-        start,
-      ),
-    );
-  const filtersActive = !!q || !!incidentType || range !== "all";
+  const effectiveDate = sql`coalesce(${sectorIntelligence.occurredAt}, ${sectorIntelligence.createdAt})`;
+  if (window.start) where.push(gte(effectiveDate, window.start));
+  if (window.end) where.push(lte(effectiveDate, window.end));
+  const filtersActive = !!q || !!incidentType || window.key !== "all";
 
   const [items, unprocessed, openRisks, incidentTypes] = await Promise.all([
     db

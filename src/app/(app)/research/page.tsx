@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { and, desc, eq, gte, ilike, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, or, type SQL } from "drizzle-orm";
 import { Settings2 } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { researchEntries, researchSourceEnum, scrapeResults, users } from "@/lib/schema";
 import { can } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui";
-import { parseRange, rangeStart } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
 import { ResearchClient } from "./research-client";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,10 @@ export default async function ResearchPage({
 
   const q = get("q").trim();
   const sourceType = researchSourceEnum.enumValues.find((s) => s === get("sourceType"));
-  const range = parseRange(get("range") || undefined, "all");
-  const start = rangeStart(range);
+  const window = parseWindow(
+    { range: get("range") || undefined, from: get("from") || undefined, to: get("to") || undefined },
+    "all",
+  );
 
   const where: SQL[] = [];
   if (q)
@@ -32,7 +34,8 @@ export default async function ResearchPage({
       or(ilike(researchEntries.title, `%${q}%`), ilike(researchEntries.content, `%${q}%`))!,
     );
   if (sourceType) where.push(eq(researchEntries.sourceType, sourceType));
-  if (start) where.push(gte(researchEntries.createdAt, start));
+  if (window.start) where.push(gte(researchEntries.createdAt, window.start));
+  if (window.end) where.push(lte(researchEntries.createdAt, window.end));
 
   const [entries, unprocessed] = await Promise.all([
     db
@@ -58,7 +61,7 @@ export default async function ResearchPage({
       .where(eq(scrapeResults.processed, false)),
   ]);
 
-  const filtersActive = !!q || !!sourceType || range !== "all";
+  const filtersActive = !!q || !!sourceType || window.key !== "all";
 
   return (
     <div className="animate-rise">

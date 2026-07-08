@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, or, type SQL } from "drizzle-orm";
 import { BellOff, SlidersHorizontal } from "lucide-react";
 import { db } from "@/lib/db";
 import { alerts, alertThresholds, alertTypeEnum, users, risks, type AlertType } from "@/lib/schema";
-import { parseRange, rangeStart, RANGE_PRESETS, type RangePreset } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
+import { FilterBar } from "@/components/filter-bar";
 import { auth } from "@/auth";
 import { can } from "@/lib/permissions";
 import {
@@ -40,7 +41,13 @@ const TYPE_LABELS: Record<AlertType, string> = {
 export default async function AlertsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; type?: string; range?: string }>;
+  searchParams: Promise<{
+    filter?: string;
+    type?: string;
+    range?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const session = await auth();
   const role = session?.user?.role ?? "read_only";
@@ -50,19 +57,19 @@ export default async function AlertsPage({
 
   const unreadOnly = sp.filter === "unread";
   const typeFilter = alertTypeEnum.enumValues.find((t) => t === sp.type);
-  const range = parseRange(sp.range, "all");
-  const start = rangeStart(range);
-  const filtersActive = unreadOnly || !!typeFilter || range !== "all";
+  const window = parseWindow({ range: sp.range, from: sp.from, to: sp.to }, "all");
+  const isCustom = sp.range === "custom";
+  const filtersActive = unreadOnly || !!typeFilter || window.key !== "all" || isCustom;
 
   const where: SQL[] = [or(eq(alerts.targetUser, userId), isNull(alerts.targetUser))!];
   if (unreadOnly) where.push(eq(alerts.isRead, false));
   if (typeFilter) where.push(eq(alerts.type, typeFilter));
-  if (start) where.push(gte(alerts.createdAt, start));
+  if (window.start) where.push(gte(alerts.createdAt, window.start));
+  if (window.end) where.push(lte(alerts.createdAt, window.end));
 
   const alertsHref = (overrides: {
     filter?: string;
     type?: AlertType;
-    range?: RangePreset;
     reset?: boolean;
   }) => {
     const q = new URLSearchParams();
@@ -76,16 +83,21 @@ export default async function AlertsPage({
             : undefined;
     const nextType =
       overrides.reset ? undefined : "type" in overrides ? overrides.type : typeFilter;
-    const nextRange = overrides.range ?? range;
     if (nextFilter) q.set("filter", nextFilter);
     if (nextType) q.set("type", nextType);
-    if (nextRange !== "all") q.set("range", nextRange);
+    if (isCustom) {
+      q.set("range", "custom");
+      if (sp.from) q.set("from", sp.from);
+      if (sp.to) q.set("to", sp.to);
+    } else if (window.key !== "all") {
+      q.set("range", window.key);
+    }
     const s = q.toString();
     return s ? `/alerts?${s}` : "/alerts";
   };
 
   const chips: { label: string; href: string; active: boolean }[] = [
-    { label: "All", href: alertsHref({ reset: true, range }), active: !unreadOnly && !typeFilter },
+    { label: "All", href: alertsHref({ reset: true }), active: !unreadOnly && !typeFilter },
     { label: "Unread", href: alertsHref({ filter: "unread" }), active: unreadOnly },
     ...alertTypeEnum.enumValues.map((t) => ({
       label: TYPE_LABELS[t],
@@ -93,11 +105,6 @@ export default async function AlertsPage({
       active: typeFilter === t,
     })),
   ];
-  const rangeChips = RANGE_PRESETS.map((r) => ({
-    label: r === "all" ? "All time" : r,
-    href: alertsHref({ range: r }),
-    active: range === r,
-  }));
 
   const rows = await db
     .select()
@@ -157,21 +164,7 @@ export default async function AlertsPage({
             </Link>
           ))}
         </div>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Date range">
-          {rangeChips.map((r) => (
-            <Link
-              key={r.label}
-              href={r.href}
-              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
-                r.active
-                  ? "border-cyber/60 bg-cyber/10 text-cyber"
-                  : "border-hairline text-muted hover:text-ink"
-              }`}
-            >
-              {r.label}
-            </Link>
-          ))}
-        </div>
+        <FilterBar rangeParam="range" defaultRange="all" showClear={false} className="mb-0" />
         {filtersActive && (
           <Link href="/alerts" className="text-sm font-semibold text-cyber hover:brightness-110">
             Clear filters

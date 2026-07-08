@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { guard, jsonError } from "@/lib/api";
-import { parseRange, RANGE_LABELS } from "@/lib/date-range";
+import { parseWindow } from "@/lib/date-range";
 import { CATEGORY_LABELS, getAnalyticsData, parseCategory } from "@/lib/analytics-data";
 
 export const maxDuration = 60;
@@ -56,11 +56,18 @@ export async function GET(request: Request) {
   if (g.error) return g.error;
 
   const url = new URL(request.url);
-  const range = parseRange(url.searchParams.get("range") ?? undefined, "90d");
+  const window = parseWindow(
+    {
+      range: url.searchParams.get("range") ?? undefined,
+      from: url.searchParams.get("from") ?? undefined,
+      to: url.searchParams.get("to") ?? undefined,
+    },
+    "90d",
+  );
   const category = parseCategory(url.searchParams.get("category") ?? undefined);
 
   try {
-    const data = await getAnalyticsData(range, category);
+    const data = await getAnalyticsData(window, category);
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "COMRiC Workspace";
@@ -71,7 +78,7 @@ export async function GET(request: Request) {
     const titleRow = summary.addRow(["COMRiC Workspace - Analytics Export"]);
     titleRow.font = { bold: true, size: 14, color: { argb: "FF1D2331" } };
     summary.addRow([]);
-    summary.addRow(["Date range", RANGE_LABELS[range]]);
+    summary.addRow(["Date range", window.label]);
     summary.addRow(["Risk category", category ? CATEGORY_LABELS[category] : "All categories"]);
     summary.addRow([
       "Generated",
@@ -125,7 +132,7 @@ export async function GET(request: Request) {
       headers: {
         "content-type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "content-disposition": `attachment; filename="analytics-${range}.xlsx"`,
+        "content-disposition": `attachment; filename="analytics-${window.key}.xlsx"`,
         "cache-control": "no-store",
       },
     });

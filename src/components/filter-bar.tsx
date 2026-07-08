@@ -28,6 +28,7 @@ export function FilterBar({
   selects = [],
   rangeParam,
   defaultRange = "all",
+  showClear = true,
   className = "",
 }: {
   /** searchParams key for the text search input; omit to hide the input. */
@@ -37,6 +38,8 @@ export function FilterBar({
   /** searchParams key for the range preset chips; omit to hide the chips. */
   rangeParam?: string;
   defaultRange?: RangePreset;
+  /** Hide the built-in "Clear filters" link (for pages with their own). */
+  showClear?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -48,11 +51,13 @@ export function FilterBar({
     if (searchParam) setQ(params.get(searchParam) ?? "");
   }, [params, searchParam]);
 
-  const setParam = useCallback(
-    (name: string, value: string) => {
+  const setParams = useCallback(
+    (updates: Record<string, string>) => {
       const next = new URLSearchParams(params.toString());
-      if (value) next.set(name, value);
-      else next.delete(name);
+      for (const [name, value] of Object.entries(updates)) {
+        if (value) next.set(name, value);
+        else next.delete(name);
+      }
       next.delete("page");
       const qs = next.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -60,16 +65,32 @@ export function FilterBar({
     [params, pathname, router],
   );
 
-  const activeRange = rangeParam
-    ? ((RANGE_PRESETS as readonly string[]).includes(params.get(rangeParam) ?? "")
-        ? (params.get(rangeParam) as RangePreset)
-        : defaultRange)
-    : defaultRange;
+  const setParam = useCallback(
+    (name: string, value: string) => setParams({ [name]: value }),
+    [setParams],
+  );
+
+  const rangeValue = rangeParam ? (params.get(rangeParam) ?? "") : "";
+  const customActive = rangeValue === "custom";
+  const activeRange: RangePreset | "custom" = customActive
+    ? "custom"
+    : (RANGE_PRESETS as readonly string[]).includes(rangeValue)
+      ? (rangeValue as RangePreset)
+      : defaultRange;
+  const fromValue = params.get("from") ?? "";
+  const toValue = params.get("to") ?? "";
 
   const anyActive =
     (searchParam ? !!params.get(searchParam) : false) ||
     selects.some((s) => !!params.get(s.name)) ||
     (rangeParam ? activeRange !== defaultRange : false);
+
+  const rangeChipClass = (active: boolean) =>
+    `rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
+      active
+        ? "border-cyber/60 bg-cyber/10 text-cyber"
+        : "border-hairline text-muted hover:text-ink"
+    }`;
 
   return (
     <div className={`mb-4 flex flex-wrap items-center gap-2 ${className}`}>
@@ -108,24 +129,52 @@ export function FilterBar({
         </select>
       ))}
       {rangeParam && (
-        <div className="flex items-center gap-1.5" role="group" aria-label="Date range">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Date range">
           {RANGE_PRESETS.map((r) => (
             <button
               key={r}
               type="button"
-              onClick={() => setParam(rangeParam, r === defaultRange ? "" : r)}
-              className={`rounded-brand border px-3 py-1.5 font-display text-xs font-bold transition-colors ${
-                activeRange === r
-                  ? "border-cyber/60 bg-cyber/10 text-cyber"
-                  : "border-hairline text-muted hover:text-ink"
-              }`}
+              onClick={() =>
+                setParams({ [rangeParam]: r === defaultRange ? "" : r, from: "", to: "" })
+              }
+              className={rangeChipClass(activeRange === r)}
             >
               {RANGE_CHIP_LABELS[r]}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              if (!customActive) setParam(rangeParam, "custom");
+            }}
+            className={rangeChipClass(customActive)}
+          >
+            Custom
+          </button>
+          {customActive && (
+            <>
+              <input
+                type="date"
+                aria-label="From date"
+                value={fromValue}
+                max={toValue || undefined}
+                onChange={(e) => setParams({ [rangeParam]: "custom", from: e.target.value })}
+                className="rounded-brand border border-hairline bg-surface px-2 py-1 text-sm text-ink outline-none transition-colors focus:border-cyber/60"
+              />
+              <span className="text-xs text-muted">to</span>
+              <input
+                type="date"
+                aria-label="To date"
+                value={toValue}
+                min={fromValue || undefined}
+                onChange={(e) => setParams({ [rangeParam]: "custom", to: e.target.value })}
+                className="rounded-brand border border-hairline bg-surface px-2 py-1 text-sm text-ink outline-none transition-colors focus:border-cyber/60"
+              />
+            </>
+          )}
         </div>
       )}
-      {anyActive && (
+      {showClear && anyActive && (
         <button
           type="button"
           onClick={() => router.replace(pathname, { scroll: false })}

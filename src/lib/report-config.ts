@@ -43,15 +43,24 @@ export const RISK_CATEGORIES = [
 
 export const SEVERITIES = ["critical", "high", "medium", "low"] as const;
 
-export const builderSchema = z.object({
-  reportType: z.enum(["risk_summary", "sector_report", "research_digest"]),
-  metrics: z.array(z.enum(METRIC_KEYS as [MetricKey, ...MetricKey[]])).max(20).default([]),
-  sources: z.array(z.enum(SOURCE_KEYS as [SourceKey, ...SourceKey[]])).max(10).default([]),
-  range: z.enum(["7d", "30d", "90d", "all"]).default("30d"),
-  category: z.enum(RISK_CATEGORIES).optional(),
-  severityFloor: z.enum(SEVERITIES).optional(),
-  instructions: z.string().trim().max(4000).optional(),
-});
+const DAY_STRING = /^\d{4}-\d{2}-\d{2}$/;
+
+export const builderSchema = z
+  .object({
+    reportType: z.enum(["risk_summary", "sector_report", "research_digest"]),
+    metrics: z.array(z.enum(METRIC_KEYS as [MetricKey, ...MetricKey[]])).max(20).default([]),
+    sources: z.array(z.enum(SOURCE_KEYS as [SourceKey, ...SourceKey[]])).max(10).default([]),
+    range: z.enum(["7d", "30d", "90d", "all", "custom"]).default("30d"),
+    rangeFrom: z.string().regex(DAY_STRING).optional(),
+    rangeTo: z.string().regex(DAY_STRING).optional(),
+    category: z.enum(RISK_CATEGORIES).optional(),
+    severityFloor: z.enum(SEVERITIES).optional(),
+    instructions: z.string().trim().max(4000).optional(),
+  })
+  .transform((v) =>
+    // rangeFrom/rangeTo are only meaningful for a custom range.
+    v.range === "custom" ? v : { ...v, rangeFrom: undefined, rangeTo: undefined },
+  );
 
 export type BuilderPayload = z.infer<typeof builderSchema>;
 
@@ -129,6 +138,7 @@ export const RANGE_LABELS: Record<BuilderPayload["range"], string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
+  custom: "Custom range",
 };
 
 export const RANGE_DAYS: Record<BuilderPayload["range"], number | null> = {
@@ -136,4 +146,5 @@ export const RANGE_DAYS: Record<BuilderPayload["range"], number | null> = {
   "30d": 30,
   "90d": 90,
   all: null,
+  custom: null,
 };

@@ -16,7 +16,7 @@ export async function sendAlertEmail(
     await resend.emails.send({
       from: "COMRiC Workspace <alerts@comricworkspace.co.za>",
       to,
-      subject: `[COMRiC] ${subject}`,
+      subject,
       html: `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
   <div style="background:#0a0c10;padding:20px 24px;">
     <span style="color:#ffffff;font-weight:900;font-size:18px;letter-spacing:-0.5px;">COMRiC</span>
@@ -53,7 +53,7 @@ export async function sendInviteEmail(
     await resend.emails.send({
       from: "COMRiC Workspace <alerts@comricworkspace.co.za>",
       to,
-      subject: "[COMRiC] You have been invited to COMRiC Workspace",
+      subject: "You have been invited to COMRiC Workspace",
       html: `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
   <div style="background:#0a0c10;padding:20px 24px;">
     <span style="color:#ffffff;font-weight:900;font-size:18px;letter-spacing:-0.5px;">COMRiC</span>

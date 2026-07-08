@@ -15,7 +15,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname.startsWith("/logo");
+    pathname.startsWith("/logo") ||
+    pathname.startsWith("/photography");
 
   const hasSession =
     request.cookies.has("authjs.session-token") ||

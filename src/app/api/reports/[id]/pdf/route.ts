@@ -16,8 +16,31 @@ import { ReportPdf } from "./report-pdf";
 
 export const maxDuration = 60;
 
+/** Cover photograph per report type, from the COMRiC image library. */
+const HERO_BY_TYPE: Record<string, string> = {
+  risk_summary: "hero-risk.jpg",
+  sector_report: "hero-sector.jpg",
+  research_digest: "hero-research.jpg",
+  deep_analysis: "hero-deep.jpg",
+};
+
+/** Fetch a cover photo from our own public assets; skip gracefully on failure. */
+async function loadHero(requestUrl: string, reportType: string): Promise<Buffer | null> {
+  const file = HERO_BY_TYPE[reportType];
+  if (!file) return null;
+  try {
+    const res = await fetch(new URL(`/photography/${file}`, requestUrl));
+    if (!res.ok || !(res.headers.get("content-type") ?? "").startsWith("image/")) {
+      return null;
+    }
+    return Buffer.from(await res.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 /** Render a persisted AI report as a branded, downloadable PDF. */
-export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const g = await guard("view", "ai_report");
   if (g.error) return g.error;
 
@@ -43,6 +66,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
   try {
     const stored = readReportParameters(row.parameters);
+    const heroImage = await loadHero(request.url, row.reportType);
     const buffer = await renderToBuffer(
       React.createElement(ReportPdf, {
         title: row.title,
@@ -52,6 +76,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
         generatedAt: formatReportDate(row.createdAt),
         dateRange: rangeLabel(stored.builder),
         metrics: stored.metrics ?? [],
+        heroImage,
       }),
     );
 

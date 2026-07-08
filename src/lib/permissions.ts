@@ -22,6 +22,9 @@ export type Resource =
  * components (hide/disable controls) and API route handlers (reject).
  */
 export function can(role: Role, action: Action, resource: Resource): boolean {
+  // Platform administrator: unrestricted.
+  if (role === "admin") return true;
+
   // Read-only: view dashboards, reports and data - nothing else.
   if (role === "read_only") {
     if (action !== "view") return false;
@@ -56,6 +59,7 @@ export class PermissionError extends Error {
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Administrator",
   ceo: "CEO",
   ops_manager: "Operations Manager",
   analyst: "Team Member",

@@ -57,7 +57,7 @@ function navGroups(role: Role): NavGroup[] {
     },
   ];
 
-  if (role === "ceo" || role === "ops_manager") {
+  if (role === "admin" || role === "ceo" || role === "ops_manager") {
     groups.push({
       label: "ADMINISTRATION",
       items: [

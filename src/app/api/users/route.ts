@@ -14,7 +14,7 @@ import { ROLE_LABELS } from "@/lib/permissions";
 const inviteUserSchema = z.object({
   fullName: z.string().min(2).max(120),
   email: z.email().max(200),
-  role: z.enum(["ceo", "ops_manager", "analyst", "read_only"]),
+  role: z.enum(["admin", "ceo", "ops_manager", "analyst", "read_only"]),
 });
 
 export async function POST(request: Request) {
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     id: string;
     fullName: string;
     email: string;
-    role: "ceo" | "ops_manager" | "analyst" | "read_only";
+    role: "admin" | "ceo" | "ops_manager" | "analyst" | "read_only";
     isActive: boolean;
     createdAt: Date;
   };

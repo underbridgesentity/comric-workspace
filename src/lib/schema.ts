@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
-export const roleEnum = pgEnum("role", ["ceo", "ops_manager", "analyst", "read_only"]);
+export const roleEnum = pgEnum("role", ["admin", "ceo", "ops_manager", "analyst", "read_only"]);
 export const riskCategoryEnum = pgEnum("risk_category", [
   "infrastructure",
   "cyber",

@@ -47,7 +47,7 @@ export default async function UsersPage() {
     id: string;
     fullName: string;
     email: string;
-    role: "ceo" | "ops_manager" | "analyst" | "read_only";
+    role: "admin" | "ceo" | "ops_manager" | "analyst" | "read_only";
     isActive: boolean;
     lastSeenAt: Date | null;
     createdAt: Date;
